@@ -40,14 +40,10 @@ async def handle_message(ws: WebSocket, msg: dict) -> None:
             case {"type": "edit_msg", "chatID": chatID, "messageID": messageID, "text": text}:
                 logger.debug("Handling edit_msg: chatID=%s, messageID=%s", chatID, messageID)
                 payload = await services.post_msg(ws, chatID, text, messageID)
-                if payload:
-                    await ws.send_json(payload)
 
             case {"type": "delete_msg", "chatID": chatID, "messageID": messageID}:
                 logger.debug("Handling delete_msg: chatID=%s, messageID=%s", chatID, messageID)
                 payload = await services.delete_msg(ws, chatID, messageID)
-                if payload:
-                    await ws.send_json(payload)
         
             # ----- CALLING CASES -----
 

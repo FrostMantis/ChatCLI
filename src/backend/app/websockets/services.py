@@ -164,6 +164,14 @@ async def post_msg(ws: WebSocket, chatID: int, text, messageID = 0) -> dict | No
             return None
         row = rows[0]
 
+        # Helper to safely convert datetime to ISO format
+        def to_iso(dt_obj):
+            if dt_obj is None:
+                return None
+            if isinstance(dt_obj, datetime):
+                return dt_obj.isoformat()
+            return str(dt_obj)
+
         payload = {
             "type": return_type,
             "messageID": row["messageID"],
@@ -171,11 +179,11 @@ async def post_msg(ws: WebSocket, chatID: int, text, messageID = 0) -> dict | No
             "userID": row["userID"],
             "username": username,
             "message": row["message"],
-            "timestamp": row["timestamp"].isoformat(),
-            "edited_at": row["edited_at"].isoformat() if row["edited_at"] else None,
-            "deleted_at": row["deleted_at"].isoformat() if row["deleted_at"] else None
+            "timestamp": to_iso(row["timestamp"]),
+            "edited_at": to_iso(row["edited_at"]),
+            "deleted_at": to_iso(row["deleted_at"])
         }
-        await broadcast_chat(chatID, payload, exclude_ws={ws})
+        await broadcast_chat(chatID, payload)
         return payload
     except Exception as e:
         logger.error("Error processing message: %s", e)
@@ -495,7 +503,7 @@ async def delete_msg(ws: WebSocket, chatID: int, messageID: int) -> dict | None:
         now = datetime.now()
         await update_records(
             table="messages", 
-            values={"message": "--deleted--","deleted_at": now}, 
+            data={"message": "--deleted--","deleted_at": now}, 
             where_clause="messageID = %s", 
             params=(messageID,)
         )

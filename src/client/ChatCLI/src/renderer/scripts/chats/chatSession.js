@@ -360,6 +360,7 @@ function confirmDeleteMessage(messageID) {
 
 async function deleteMessage(messageID) {
   try {
+    console.log('Sending delete_msg:', { type: 'delete_msg', chatID: store.currentChatID, messageID });
     WSSend({
       type: 'delete_msg',
       chatID: store.currentChatID,
@@ -383,6 +384,7 @@ export async function sendMessage() {
 
   if (len <= MAX_MESSAGE_LEN) {
     if (store.editingMessageID) {
+      console.log('Sending edit_msg:', { type: 'edit_msg', chatID: store.currentChatID, messageID: store.editingMessageID, text });
       WSSend({
         type: 'edit_msg',
         chatID: store.currentChatID,
@@ -391,6 +393,7 @@ export async function sendMessage() {
       });
       cancelEditingMessage();
     } else {
+      console.log('Sending post_msg:', { type: 'post_msg', chatID: store.currentChatID, text });
       WSSend({ type: 'post_msg', chatID: store.currentChatID, text });
     }
     messageInput.value = '';
@@ -486,8 +489,10 @@ export function onWSNewMessage({ detail: msg }) {
 }
 
 export function onWSEditedMessage({ detail: msg }) {
+  console.log('onWSEditedMessage received:', msg);
   // Find message element by messageID
   const msgEl = document.querySelector(`[data-message-id="${msg.messageID}"]`);
+  console.log('Found message element:', msgEl);
   if (msgEl) {
     // Update the message text in the bubble
     const bubble = msgEl.querySelector('.message-bubble');
@@ -510,8 +515,10 @@ export function onWSEditedMessage({ detail: msg }) {
 }
 
 export function onWSDeletedMessage({ detail: msg }) {
+  console.log('onWSDeletedMessage received:', msg);
   // Find message element by messageID
   const msgEl = document.querySelector(`[data-message-id="${msg.messageID}"]`);
+  console.log('Found message element:', msgEl);
   if (msgEl) {
     // Update the message text and style to show deletion
     const bubble = msgEl.querySelector('.message-bubble');

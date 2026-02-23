@@ -152,11 +152,13 @@ export function connectWS() {
     }
 
     if (msg.type === 'edited_message') {
+      console.log('Dispatching edited_message event:', msg);
       window.dispatchEvent(new CustomEvent('chat:edited-message', { detail: msg }));
       return;
     }
 
     if (msg.type === 'deleted_message') {
+      console.log('Dispatching deleted_message event:', msg);
       window.dispatchEvent(new CustomEvent('chat:deleted-message', { detail: msg }));
       return;
     }

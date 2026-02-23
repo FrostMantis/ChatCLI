@@ -128,6 +128,8 @@ async def post_msg(ws: WebSocket, chatID: int, text, messageID = 0) -> dict | No
     if not username or chatID is None or text is None:
         return {"type": "error", "message": "Invalid message content."}
 
+    logger.debug("post_msg called: username=%s, chatID=%s, messageID=%s", username, chatID, messageID)
+
     users = await fetch_records("users", "username = %s", (username,), True)
     if not users: return {"type": "error", "message": "User not found."}
     user_id = users[0]["userID"]
@@ -170,8 +172,8 @@ async def post_msg(ws: WebSocket, chatID: int, text, messageID = 0) -> dict | No
             "username": username,
             "message": row["message"],
             "timestamp": row["timestamp"].isoformat(),
-            "edited_at": row["edited_at"],
-            "deleted_at": row["deleted_at"]
+            "edited_at": row["edited_at"].isoformat() if row["edited_at"] else None,
+            "deleted_at": row["deleted_at"].isoformat() if row["deleted_at"] else None
         }
         await broadcast_chat(chatID, payload, exclude_ws={ws})
         return payload
@@ -468,6 +470,7 @@ async def delete_msg(ws: WebSocket, chatID: int, messageID: int) -> dict | None:
     Marks a message as deleted (soft delete) and broadcasts the change.
     """
     username = getattr(ws.state, "username", None)
+    logger.debug("delete_msg called: username=%s, chatID=%s, messageID=%s", username, chatID, messageID)
     if not username or chatID is None or messageID is None:
         return {"type": "error", "message": "Invalid request parameters."}
 

@@ -4,6 +4,7 @@ import mariadb
 from fastapi import WebSocket, status
 from db_helper import fetch_records, insert_record, update_records
 from datetime import datetime
+import calls
 
 logger = logging.getLogger(__name__)
 
@@ -462,3 +463,17 @@ async def broadcast_call_to_chat_participants(chatID: int, payload: dict) -> Non
 
 async def delete_msg(ws, chatID, messageID):
     return
+
+
+# Call wrappers that accept a WebSocket and forward to the calls module
+async def call_invite(ws: WebSocket, chatID: int):
+    return await calls.call_invite(ws, chatID)
+
+async def call_accept(ws: WebSocket, chatID: int, call_id: str):
+    return await calls.call_accept(ws, chatID, call_id)
+
+async def call_decline(ws: WebSocket, chatID: int):
+    return await calls.call_decline(ws, chatID)
+
+async def call_end(ws: WebSocket, chatID: int):
+    return await calls.call_end(ws, chatID)

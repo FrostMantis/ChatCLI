@@ -538,7 +538,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           const chatID = result.chatID;
           showToast('Private chat created!', 'info');
           try {
-            WSSend({ type : 'chat_created', chatID : chatID, 'creator': store.username });
+            WSSend({ type : 'chat_created', chatID : chatID });
           } catch (err) {showToast(err.message, 'error')}
           hideModal(createChatModal);
           newChatInput.value = '';
@@ -562,7 +562,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           const chatID = result.chatID;
           showToast('Group created!', 'info');
           try {
-            WSSend({ type: 'chat_created', chatID : chatID, 'creator': store.username });
+            WSSend({ type: 'chat_created', chatID : chatID });
           } catch (err) {showToast(err.message + "send chat_created", 'error')}
           hideModal(createChatModal);
           newGroupNameInput.value = '';

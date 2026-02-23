@@ -39,3 +39,4 @@ npm-debug.log*
 *.log
 settings.json
 package-lock.json
+ignore.md

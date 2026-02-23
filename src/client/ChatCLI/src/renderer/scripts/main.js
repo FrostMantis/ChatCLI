@@ -7,7 +7,7 @@ import { initChatSearch, reapplyChatSearch } from './chats/search.js';
 import { apiRequest } from './core/api.js';
 import { loadChats, onWSChatCreated } from './chats/chatList.js';
 import { handleArchiveChat, archiveChat } from './chats/archive.js';
-import { selectChat, sendMessage, updateSendButtonState, onWSNewMessage, onWSTyping, onWSUserStatus, onWSOnlineUsers } from './chats/chatSession.js';
+import { selectChat, sendMessage, updateSendButtonState, onWSNewMessage, onWSTyping, onWSUserStatus, onWSOnlineUsers, onWSEditedMessage, onWSDeletedMessage } from './chats/chatSession.js';
 import { openGroupEditor, initGroupEditor } from './chats/groupEditor.js';
 import { showToast } from './ui/toasts.js';
 import { sendCallInviteViaGlobal, sendCallAcceptViaGlobal, sendCallDeclineViaGlobal, sendCallEndViaGlobal } from './calls/callSockets.js';
@@ -18,6 +18,8 @@ import { playRingback, stopRingback, playRingtone, stopRingtone, initMedia } fro
 
 // --- events from ws
 window.addEventListener('chat:new-message', onWSNewMessage);
+window.addEventListener('chat:edited-message', onWSEditedMessage);
+window.addEventListener('chat:deleted-message', onWSDeletedMessage);
 window.addEventListener('chat:user-typing', onWSTyping);
 window.addEventListener('chat:user-status', onWSUserStatus);
 window.addEventListener('chat:chat_created', onWSChatCreated);

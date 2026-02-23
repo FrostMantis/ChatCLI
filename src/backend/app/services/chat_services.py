@@ -164,7 +164,9 @@ def get_messages(data: dict) -> dict:
             "userID": r["userID"],
             "username": id_to_username.get(r["userID"], "unknown"),
             "message": r["message"],
-            "timestamp": r["timestamp"].isoformat()
+            "timestamp": r["timestamp"].isoformat(),
+            "edited_at": r["edited_at"].isoformat() if r["edited_at"] else None,
+            "deleted_at": r["deleted_at"].isoformat() if r["deleted_at"] else None
         }
         for r in reversed(rows)
     ]

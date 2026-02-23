@@ -149,7 +149,7 @@ async def post_msg(ws: WebSocket, chatID: int, text, messageID = 0) -> dict | No
         if messageID == 0:
             messageID = await insert_record("messages", {"chatID": chatID, "userID": user_id, "message": text})
         else:
-            await update_records("messages", {"message": text, "edited_at": datetime.now}, "messageID=%s", (messageID,))
+            await update_records("messages", {"message": text, "edited_at": datetime.now()}, "messageID=%s", (messageID,))
 
         rows = await fetch_records(
             table="messages",
@@ -169,7 +169,9 @@ async def post_msg(ws: WebSocket, chatID: int, text, messageID = 0) -> dict | No
             "userID": row["userID"],
             "username": username,
             "message": row["message"],
-            "timestamp": row["timestamp"].isoformat()
+            "timestamp": row["timestamp"].isoformat(),
+            "edited_at": row["edited_at"],
+            "deleted_at": row["deleted_at"]
         }
         await broadcast_chat(chatID, payload, exclude_ws={ws})
         return payload
@@ -461,8 +463,53 @@ async def broadcast_call_to_chat_participants(chatID: int, payload: dict) -> Non
       logger.warning("Removing dead connection for %s: %s", username, e)
       active_connections.pop(username, None)
 
-async def delete_msg(ws, chatID, messageID):
-    return
+async def delete_msg(ws: WebSocket, chatID: int, messageID: int) -> dict | None:
+    """
+    Marks a message as deleted (soft delete) and broadcasts the change.
+    """
+    username = getattr(ws.state, "username", None)
+    if not username or chatID is None or messageID is None:
+        return {"type": "error", "message": "Invalid request parameters."}
+
+    users = await fetch_records("users", "username = %s", (username,), True)
+    if not users: 
+        return {"type": "error", "message": "User not found."}
+    user_id = users[0]["userID"]
+
+    existing = await fetch_records("messages", "messageID = %s AND chatID = %s", (messageID, chatID), True)
+    if not existing:
+        return {"type": "error", "message": "Message not found."}
+    
+    msg_record = existing[0]
+
+    if msg_record["userID"] != user_id:
+        return {"type": "error", "message": "Unauthorized: You can only delete your own messages."}
+    
+    if msg_record["deleted_at"] is not None:
+        return {"type": "error", "message": "Message is already deleted."}
+
+    try:
+        now = datetime.now()
+        await update_records(
+            table="messages", 
+            values={"message": "--deleted--","deleted_at": now}, 
+            where_clause="messageID = %s", 
+            params=(messageID,)
+        )
+
+        payload = {
+            "type": "deleted_message",
+            "messageID": messageID,
+            "chatID": chatID,
+            "deleted_at": now.isoformat()
+        }
+
+        await broadcast_chat(chatID, payload)
+        return payload
+
+    except Exception as e:
+        logger.error("Error deleting message %s: %s", messageID, e)
+        return {"type": "error", "message": "Database error during deletion."}
 
 
 # Call wrappers that accept a WebSocket and forward to the calls module

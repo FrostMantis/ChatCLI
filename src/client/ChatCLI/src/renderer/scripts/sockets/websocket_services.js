@@ -151,6 +151,16 @@ export function connectWS() {
       return;
     }
 
+    if (msg.type === 'edited_message') {
+      window.dispatchEvent(new CustomEvent('chat:edited-message', { detail: msg }));
+      return;
+    }
+
+    if (msg.type === 'deleted_message') {
+      window.dispatchEvent(new CustomEvent('chat:deleted-message', { detail: msg }));
+      return;
+    }
+
     if (msg.type === 'user_typing' &&
         msg.chatID === store.currentChatID &&
         msg.username.toLowerCase() !== (store.username || '').toLowerCase()) {

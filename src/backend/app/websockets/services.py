@@ -505,7 +505,7 @@ async def delete_msg(ws: WebSocket, chatID: int, messageID: int) -> dict | None:
             table="messages", 
             data={"message": "--deleted--","deleted_at": now}, 
             where_clause="messageID = %s", 
-            params=(messageID,)
+            where_params=(messageID,)
         )
 
         payload = {

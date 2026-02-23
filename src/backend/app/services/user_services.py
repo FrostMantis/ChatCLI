@@ -51,8 +51,8 @@ def register(data: dict) -> dict:
         )
 
     try:
-        # hash password
-        hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
+        # hash password (store as utf-8 string for DB portability)
+        hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
         # check existing user
         users = fetch_records(
@@ -248,8 +248,22 @@ def login(data: dict) -> dict:
         if not users:
             raise BadRequest("Username or password is incorrect.")
         user = users[0]
-        if not bcrypt.checkpw(password.encode("utf-8"), user["password"].encode("utf-8")):
-            raise BadRequest("Username or password is incorrect.")
+        # Normalize stored password to bytes for bcrypt
+        stored = user.get("password")
+        if isinstance(stored, (bytes, bytearray, memoryview)):
+            stored_bytes = bytes(stored)
+        elif isinstance(stored, str):
+            stored_bytes = stored.encode("utf-8")
+        else:
+            current_app.logger.error("Unexpected password type for user %s: %s", username, type(stored))
+            raise APIError()
+
+        try:
+            if not bcrypt.checkpw(password.encode("utf-8"), stored_bytes):
+                raise BadRequest("Username or password is incorrect.")
+        except ValueError as e:
+            current_app.logger.error("Invalid password hash for user %s: %r", username, stored, exc_info=e)
+            raise APIError()
 
         now = datetime.now(timezone.utc)
         # generate access token
@@ -481,8 +495,8 @@ def reset_password(data: dict) -> dict:
         if not users:
             raise BadRequest("Username does not match.")
 
-        # update password & revoke token
-        new_hashed = bcrypt.hashpw(new_pass.encode("utf-8"), bcrypt.gensalt())
+        # update password & revoke token (store as utf-8 string)
+        new_hashed = bcrypt.hashpw(new_pass.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
         update_records(
             table="users",
             data={"password": new_hashed},
@@ -713,8 +727,22 @@ def change_password(data: dict) -> dict:
         )
         if not user:
             raise NotFound("User not found.")
-        if not bcrypt.checkpw(old_password.encode("utf-8"), user["password"].encode("utf-8")):
-            raise Forbidden("Incorrect current password.")
+        # Normalize stored password to bytes for bcrypt
+        stored = user.get("password")
+        if isinstance(stored, (bytes, bytearray, memoryview)):
+            stored_bytes = bytes(stored)
+        elif isinstance(stored, str):
+            stored_bytes = stored.encode("utf-8")
+        else:
+            current_app.logger.error("Unexpected password type for user %s: %s", username, type(stored))
+            raise APIError()
+
+        try:
+            if not bcrypt.checkpw(old_password.encode("utf-8"), stored_bytes):
+                raise Forbidden("Incorrect current password.")
+        except ValueError as e:
+            current_app.logger.error("Invalid password hash for user %s during change_password: %r", username, stored, exc_info=e)
+            raise APIError()
         if (
             len(new_password) < 8 or
             not any(ch.isupper() for ch in new_password) or
@@ -724,7 +752,7 @@ def change_password(data: dict) -> dict:
         ):
             raise BadRequest("Password must be ≥8 chars, include upper, lower, digit & special.")
 
-        hashed = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt())
+        hashed = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
         update_records(
             table="users",
             data={"password": hashed},

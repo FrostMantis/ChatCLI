@@ -348,7 +348,6 @@ function confirmDeleteMessage(messageID) {
 
 async function deleteMessage(messageID) {
   try {
-    console.log('Sending delete_msg:', { type: 'delete_msg', chatID: store.currentChatID, messageID });
     WSSend({
       type: 'delete_msg',
       chatID: store.currentChatID,
@@ -476,10 +475,8 @@ export function onWSNewMessage({ detail: msg }) {
 }
 
 export function onWSEditedMessage({ detail: msg }) {
-  console.log('onWSEditedMessage received:', msg);
   // Find message element by messageID
   const msgEl = document.querySelector(`[data-message-id="${msg.messageID}"]`);
-  console.log('Found message element:', msgEl);
   
   if (msgEl) {
     const bubble = msgEl.querySelector('.message-bubble');
@@ -507,10 +504,8 @@ export function onWSEditedMessage({ detail: msg }) {
 }
 
 export function onWSDeletedMessage({ detail: msg }) {
-  console.log('onWSDeletedMessage received:', msg);
   // Find message element by messageID
   const msgEl = document.querySelector(`[data-message-id="${msg.messageID}"]`);
-  console.log('Found message element:', msgEl);
   if (msgEl) {
     // Update the message text and style to show deletion
     const bubble = msgEl.querySelector('.message-bubble');

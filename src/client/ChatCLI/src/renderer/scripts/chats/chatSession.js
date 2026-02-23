@@ -194,7 +194,6 @@ export async function selectChat(chatID) {
   }));
 }
 
-
 export function appendMessage({ username: msgUser, message, timestamp, messageID, edited_at, deleted_at }) {
   const { messagesEl } = store.refs;
 
@@ -215,7 +214,6 @@ export function appendMessage({ username: msgUser, message, timestamp, messageID
   wrap.dataset.ts = String(tsMs);
   if (messageID) wrap.dataset.messageId = String(messageID);
 
-  // Left rail: avatar for cluster start; for continuations add a hover-time
   const leftRail = document.createElement('div');
   leftRail.className = 'message-rail' + (startNewCluster ? '' : ' spacer');
 
@@ -236,14 +234,12 @@ export function appendMessage({ username: msgUser, message, timestamp, messageID
     }
     leftRail.appendChild(avatar);
   } else {
-    // add hover time placeholder for continuations
     const hoverTime = document.createElement('span');
     hoverTime.className = 'hover-time';
-    hoverTime.textContent = timeHHmm; // e.g. "14:07"
+    hoverTime.textContent = timeHHmm;
     leftRail.appendChild(hoverTime);
   }
 
-  // Right column
   const right = document.createElement('div');
   right.className = 'message-body';
 
@@ -266,7 +262,6 @@ export function appendMessage({ username: msgUser, message, timestamp, messageID
     right.appendChild(header);
   }
 
-  // Show "(deleted)" for deleted messages
   const isDeleted = deleted_at !== null && deleted_at !== undefined;
   
   const bubble = document.createElement('div');
@@ -280,7 +275,6 @@ export function appendMessage({ username: msgUser, message, timestamp, messageID
   }
   right.appendChild(bubble);
 
-  // Show edit indicator
   if (edited_at !== null && edited_at !== undefined) {
     const editIndicator = document.createElement('span');
     editIndicator.className = 'edit-indicator';
@@ -291,42 +285,30 @@ export function appendMessage({ username: msgUser, message, timestamp, messageID
     bubble.appendChild(editIndicator);
   }
 
-  // Add edit/delete buttons for own messages (only if not deleted)
+  // Discord Style Actions
   if (!isDeleted && msgUser.toLowerCase() === (store.username || '').toLowerCase()) {
     const actions = document.createElement('div');
     actions.className = 'message-actions';
-    actions.style.display = 'flex';
-    actions.style.gap = '8px';
-    actions.style.marginTop = '4px';
-    actions.style.fontSize = '0.85em';
 
     const editBtn = document.createElement('button');
-    editBtn.textContent = 'Edit';
-    editBtn.className = 'message-action-btn';
-    editBtn.style.background = 'none';
-    editBtn.style.border = 'none';
-    editBtn.style.color = 'var(--text-link, #0066cc)';
-    editBtn.style.cursor = 'pointer';
-    editBtn.style.padding = '0';
-    editBtn.onclick = () => startEditingMessage(messageID, message);
+    editBtn.textContent = '✎';
+    editBtn.className = 'message-action-btn message-action-edit';
+    editBtn.title = 'Edit message';
+    // Initial click handler
+    editBtn.onclick = () => startEditingMessage(messageID, bubble.firstChild.textContent);
 
     const deleteBtn = document.createElement('button');
-    deleteBtn.textContent = 'Delete';
-    deleteBtn.className = 'message-action-btn';
-    deleteBtn.style.background = 'none';
-    deleteBtn.style.border = 'none';
-    deleteBtn.style.color = 'var(--text-danger, #d32f2f)';
-    deleteBtn.style.cursor = 'pointer';
-    deleteBtn.style.padding = '0';
+    deleteBtn.textContent = '✕';
+    deleteBtn.className = 'message-action-btn message-action-delete';
+    deleteBtn.title = 'Delete message';
     deleteBtn.onclick = () => confirmDeleteMessage(messageID);
 
     actions.append(editBtn, deleteBtn);
-    right.appendChild(actions);
+    wrap.appendChild(actions); 
   }
 
   wrap.append(leftRail, right);
   messagesEl.appendChild(wrap);
-
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
@@ -337,7 +319,10 @@ function startEditingMessage(messageID, currentText) {
   messageInput.value = currentText;
   messageInput.focus();
   messageInput.placeholder = 'Editing message... (press Escape to cancel)';
-  messageInput.style.backgroundColor = 'var(--bg-edit-mode, #f5f5f5)';
+  
+  messageInput.style.backgroundColor = 'var(--bg-tertiary)';
+  messageInput.style.outline = '1px solid var(--accent-color)';
+  
   updateSendButtonState();
 }
 
@@ -346,7 +331,10 @@ function cancelEditingMessage() {
   store.editingMessageID = null;
   messageInput.value = '';
   messageInput.placeholder = 'Type a message...';
+  
   messageInput.style.backgroundColor = '';
+  messageInput.style.outline = '';
+  
   updateSendButtonState();
 }
 
@@ -384,7 +372,7 @@ export async function sendMessage() {
 
   if (len <= MAX_MESSAGE_LEN) {
     if (store.editingMessageID) {
-      console.log('Sending edit_msg:', { type: 'edit_msg', chatID: store.currentChatID, messageID: store.editingMessageID, text });
+      // Logic for saving an edited message
       WSSend({
         type: 'edit_msg',
         chatID: store.currentChatID,
@@ -393,9 +381,10 @@ export async function sendMessage() {
       });
       cancelEditingMessage();
     } else {
-      console.log('Sending post_msg:', { type: 'post_msg', chatID: store.currentChatID, text });
+      // Normal message post
       WSSend({ type: 'post_msg', chatID: store.currentChatID, text });
     }
+    
     messageInput.value = '';
     messageInput.style.height = 'auto';
     updateSendButtonState();
@@ -411,7 +400,6 @@ export async function sendMessage() {
 
   if (len > HARD_MAX) {
     const over = len - HARD_MAX;
-
     const overflowRaw = text.slice(HARD_MAX).trimStart();
     let overflowSnippet = '';
     if (overflowRaw.length > 0) {
@@ -470,7 +458,6 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-// WS event handlers (hooked by main.js)
 export function onWSNewMessage({ detail: msg }) {
   if (msg.chatID === store.currentChatID) {
     appendMessage({
@@ -493,13 +480,12 @@ export function onWSEditedMessage({ detail: msg }) {
   // Find message element by messageID
   const msgEl = document.querySelector(`[data-message-id="${msg.messageID}"]`);
   console.log('Found message element:', msgEl);
+  
   if (msgEl) {
-    // Update the message text in the bubble
     const bubble = msgEl.querySelector('.message-bubble');
     if (bubble) {
-      // Clear existing content
       bubble.textContent = msg.message;
-      // Add edit indicator
+      
       const editIndicator = document.createElement('span');
       editIndicator.className = 'edit-indicator';
       editIndicator.textContent = '(edited)';
@@ -508,7 +494,13 @@ export function onWSEditedMessage({ detail: msg }) {
       editIndicator.style.marginLeft = '0.5em';
       bubble.appendChild(editIndicator);
     }
+
+    const editBtn = msgEl.querySelector('.message-action-edit');
+    if (editBtn) {
+      editBtn.onclick = () => startEditingMessage(msg.messageID, msg.message);
+    }
   }
+
   if (msg.chatID === store.currentChatID) {
     showToast('Message updated', 'info');
   }

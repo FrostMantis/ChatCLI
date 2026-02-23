@@ -221,6 +221,8 @@ def create_database_and_tables():
                       userID    INT NOT NULL,
                       message   TEXT,
                       timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                      edited_at DATETIME,
+                      deleted_at DATETIME,
                       INDEX idx_msg_chat_ts (chatID, timestamp)
                     ) CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
                     """

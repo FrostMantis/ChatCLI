@@ -36,6 +36,14 @@ async def handle_message(username: str, ws: WebSocket, msg: dict) -> None:
             case {"type": "join_idle"}:
                 services.idle_subscriptions.add(ws)
 
+            case {"type": "edit_msg", "chatID": chatID, "messageID": messageID, "text": text}:
+                payload = await services.post_msg(username, chatID, text, ws, messageID)
+                if payload:
+                    await ws.send_json(payload)
+
+            case {"type": "edit_msg", "chatID" : chatID, "messageID" : messageID}:
+                services.delete_msg(ws, chatID, messageID)
+        
             # ----- CALLING CASES -----
 
             case {"type": "call_invite", "chatID": chatID}:

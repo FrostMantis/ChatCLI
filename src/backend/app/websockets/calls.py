@@ -3,12 +3,16 @@ import uuid
 import mariadb
 import db_helper as db
 import services
+from fastapi import WebSocket
 
 logger = logging.getLogger(__name__)
 
 
-async def call_invite(caller: str, chatID: int) -> None:
-    """Start a new call in the given chat, if allowed."""
+async def call_invite(ws: WebSocket, chatID: int) -> None:
+    """Start a new call in the given chat, deriving caller from `ws`."""
+    caller = getattr(ws.state, "username", None)
+    if not caller:
+        return
     # Basic validation: ensure chat exists and caller is a participant
     try:
         participants_rows = await db.fetch_records(
@@ -79,8 +83,11 @@ async def call_invite(caller: str, chatID: int) -> None:
     await services.broadcast_call_to_chat_participants(chatID, payload)
 
 
-async def call_accept(username: str, chatID: int, call_id: str) -> None:
-    """Accept a pending call for the given chat and call id."""
+async def call_accept(ws: WebSocket, chatID: int, call_id: str) -> None:
+    """Accept a pending call for the given chat and call id, deriving user from `ws`."""
+    username = getattr(ws.state, "username", None)
+    if not username:
+        return
     current_cid = services.pending_calls.get(chatID)
     if not current_cid or current_cid != call_id:
         await services.send_to_user(username, {
@@ -144,8 +151,11 @@ async def call_accept(username: str, chatID: int, call_id: str) -> None:
     })
 
 
-async def call_decline(username: str, chatID: int) -> None:
-    """Decline the current call for this chat (if any)."""
+async def call_decline(ws: WebSocket, chatID: int) -> None:
+    """Decline the current call for this chat (if any), deriving user from `ws`."""
+    username = getattr(ws.state, "username", None)
+    if not username:
+        return
     call_id = services.pending_calls.get(chatID)
     if not call_id:
         return
@@ -165,8 +175,11 @@ async def call_decline(username: str, chatID: int) -> None:
         services.call_sessions.pop(call_id, None)
 
 
-async def call_end(username: str, chatID: int) -> None:
-    """End the current call for this chat (if any)."""
+async def call_end(ws: WebSocket, chatID: int) -> None:
+    """End the current call for this chat (if any), deriving user from `ws`."""
+    username = getattr(ws.state, "username", None)
+    if not username:
+        return
     call_id = services.pending_calls.get(chatID)
     if not call_id:
         await services.send_to_user(username, {

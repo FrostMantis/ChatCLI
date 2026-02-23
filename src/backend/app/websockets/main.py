@@ -72,7 +72,7 @@ async def websocket_endpoint(ws: WebSocket):
     try:
         while True:
             msg = await ws.receive_json()
-            await handler.handle_message(username, ws, msg)
+            await handler.handle_message(ws, msg)
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected for user: %s", username)
     except Exception as e:

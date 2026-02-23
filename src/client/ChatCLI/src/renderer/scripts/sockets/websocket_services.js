@@ -133,15 +133,14 @@ export function connectWS() {
       return;
     }
 
+    if (msg === null) {
+        return; 
+    }
+
     // Handle the "online_users" message type
     if (msg.type === 'online_users') {
       window.dispatchEvent(new CustomEvent('chat:online-users', { detail: msg.users }));
       return;
-    }
-
-    if (msg === null) {
-        console.warn('[CHAT-WS] Received unexpected null payload.');
-        return; 
     }
 
     // Chat messages

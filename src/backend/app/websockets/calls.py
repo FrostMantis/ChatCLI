@@ -6,14 +6,16 @@ import services
 from fastapi import WebSocket
 from livekit import api
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
 # --- LiveKit Configuration ---
-# Use the keys from your LiveKit logs
-LIVEKIT_KEY = "devkey"
-LIVEKIT_SECRET = "secret"
-LIVEKIT_URL = "ws://172.27.27.16:7880"
+LIVEKIT_KEY = os.getenv("LIVEKIT_KEY")
+LIVEKIT_SECRET = os.getenv("LIVEKIT_SECRET")
+LIVEKIT_URL = os.getenv("LIVEKIT_URL")
 
 def generate_lk_token(username: str, chat_id: str):
     """Generates the JWT token required for LiveKit."""
@@ -43,7 +45,7 @@ async def call_invite(ws: WebSocket, chatID: int):
         "type": "call_invite",
         "chatID": chatID,
         "caller": caller,
-        "lk_token": token,  # Send token to the person who started it
+        "lk_token": token,
         "lk_url": LIVEKIT_URL
     }
     

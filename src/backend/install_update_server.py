@@ -46,6 +46,11 @@ FLASK_SECRET_KEY={flask_key}
 
 #Public URL of the server
 PUB_URL=127.0.01
+
+#LiveKIT
+LIVEKIT_KEY = "devkey"
+LIVEKIT_SECRET = "secret"
+LIVEKIT_URL = "ws://127.0.0.1:7880"
 """
 
 def ensure_env(env=".env"):

@@ -275,7 +275,7 @@ export function appendMessage({ username: msgUser, message, timestamp, messageID
   }
   right.appendChild(bubble);
 
-  if (edited_at !== null && edited_at !== undefined) {
+  if (edited_at !== null && edited_at !== undefined && deleted_at == null) {
     const editIndicator = document.createElement('span');
     editIndicator.className = 'edit-indicator';
     editIndicator.textContent = '(edited)';

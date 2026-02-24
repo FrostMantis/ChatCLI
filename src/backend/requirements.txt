@@ -8,3 +8,4 @@ python-dotenv==1.1.1
 asyncmy>=0.2.10
 uvicorn==0.34.3
 websockets==15.0.1
+livekit-api>=1.1.0

@@ -423,6 +423,64 @@ document.addEventListener('DOMContentLoaded', async () => {
               break;
           }
 
+          case 'call_invite': {
+              // Incoming call invitation from another user
+              const { chatID, call_id, caller, lk_token, lk_url } = msg;
+              
+              // Store call credentials and ID
+              if (self === (caller || '').toLowerCase()) {
+                  store.call.currentCallId = call_id;
+                  store.call.outgoingToken = lk_token;
+                  store.call.outgoingUrl = lk_url;
+                  store.callState = 'outgoing';
+                  store.callActiveChatID = chatID;
+                  playRingback();
+              } else {
+                  store.call.incomingToken = lk_token;
+                  store.call.incomingUrl = lk_url;
+                  store.call.incomingChatID = chatID;
+                  store.call.incomingCaller = caller;
+                  store.call.incomingCallId = call_id;
+                  store.callIncoming = { chatID, from: caller, call_id };
+                  store.callState = 'incoming';
+                  store.callActiveChatID = chatID;
+                  playRingtone();
+                  showIncomingCallModal(caller, 'is calling you…');
+              }
+              
+              updateCallButton();
+              
+              // Dispatch event for anyone listening
+              window.dispatchEvent(new CustomEvent('call:incoming', {
+                detail: { chatID, from: caller, call_id, lk_token, lk_url }
+              }));
+              break;
+          }
+
+          case 'call_accepted': {
+              // Call has been accepted by another user
+              const { chatID, call_id, accepted_by, lk_token, lk_url } = msg;
+              
+              // Update call state
+              store.call.currentCallId = call_id;
+              store.callState = 'in-call';
+              store.callActiveChatID = chatID;
+              
+              stopRingback();
+              hideIncomingCallModal();
+              
+              // Join the call
+              try {
+                  await joinCall(lk_url, lk_token);
+              } catch (error) {
+                  console.error('[CALL] Failed to join after accept:', error);
+                  showToast('Failed to connect to call', 'error');
+              }
+              
+              updateCallButton();
+              break;
+          }
+
           case 'call_ended':
               window.dispatchEvent(new Event('call:ended'));
               break;

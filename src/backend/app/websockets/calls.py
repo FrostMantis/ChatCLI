@@ -37,13 +37,26 @@ async def call_invite(ws: WebSocket, chatID: int):
     if not caller: 
         return
 
+    # Generate unique call ID
+    call_id = str(uuid.uuid4())
+    
     # 1. Generate the token for the initiator
     token = generate_lk_token(caller, str(chatID))
 
-    # 2. Inform the group that a call started
+    # 2. Store call state
+    services.pending_calls[chatID] = call_id
+    services.call_sessions[call_id] = {
+        "initiator": caller,
+        "chatID": chatID,
+        "state": "ringing",
+        "participants": {caller}
+    }
+
+    # 3. Inform the group that a call started
     payload = {
         "type": "call_invite",
         "chatID": chatID,
+        "call_id": call_id,
         "caller": caller,
         "lk_token": token,
         "lk_url": LIVEKIT_URL
@@ -59,15 +72,48 @@ async def call_accept(ws: WebSocket, chatID: int, call_id: str = None):
     if not username: 
         return
 
+    # Get the call info from pending calls if not provided
+    if not call_id:
+        call_id = services.pending_calls.get(chatID)
+    
+    if not call_id:
+        return {
+            "type": "call_error",
+            "chatID": chatID,
+            "code": "CALL_NOT_FOUND",
+            "message": "No active call in this chat"
+        }
+
+    # Get the session and add this user to participants
+    session = services.call_sessions.get(call_id)
+    if session:
+        session["state"] = "active"
+        session["participants"].add(username)
+        services.call_sessions[call_id] = session
+    else:
+        return {
+            "type": "call_error",
+            "chatID": chatID,
+            "code": "SESSION_NOT_FOUND",
+            "message": "Call session not found"
+        }
+
     # Generate a token for the person joining
     token = generate_lk_token(username, str(chatID))
 
-    return {
+    payload = {
         "type": "call_accepted",
         "chatID": chatID,
+        "call_id": call_id,
+        "accepted_by": username,
         "lk_token": token,
         "lk_url": LIVEKIT_URL
     }
+    
+    # Broadcast to everyone in the chat
+    await services.broadcast_call_to_chat_participants(chatID, payload)
+    
+    return payload
 
 async def call_decline(ws: WebSocket, chatID: int) -> None:
     """Decline the current call for this chat (if any), deriving user from `ws`."""

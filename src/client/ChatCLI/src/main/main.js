@@ -1,8 +1,8 @@
-const { app, ipcMain, BrowserWindow } = require('electron')
+const { app, ipcMain, BrowserWindow, session } = require('electron')
 const path = require('path')
 const keytar = require('keytar')
 const { saveRefreshToken, getRefreshToken, deleteRefreshToken } = require('../preload/authVault.js')
-const { BASE_URL } = require('../preload/config.js')
+const { BASE_URL, LIVEKIT_IP_URL } = require('../preload/config.js')
 
 const SERVICE = 'chatcli'
 const PROFILEArg = process.argv.find(arg => arg.startsWith('--PROFILE='))
@@ -12,6 +12,11 @@ const isDev = !app.isPackaged;
 const iconPath = isDev
   ? path.join(__dirname, '../../static/icon.ico')
   : path.join(process.resourcesPath, 'icon.ico');
+
+app.commandLine.appendSwitch(
+  'unsafely-treat-insecure-origin-as-secure', 
+  `${BASE_URL}, ${LIVEKIT_IP_URL}`
+);
 
 ipcMain.handle('auth:storeRefresh', async (_e, { accountId, refreshToken }) => {
   const key = `${PROFILE}::${accountId}`
@@ -65,10 +70,25 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
-      icon: iconPath,
+      // Temporarily set to false if the bypass switch above is ignored by specific OS policies
+      webSecurity: true, 
     },
   })
-  win.removeMenu()
+
+  /**
+   * AUTO-APPROVE MICROPHONE PERMISSIONS
+   * Prevents Electron from showing a permission dialog for every call.
+   */
+  win.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
+    const allowed = ['media', 'audioCapture', 'videoCapture'];
+    if (allowed.includes(permission)) {
+      callback(true);
+    } else {
+      callback(false);
+    }
+  });
+
+  // win.removeMenu()
   win.loadFile(path.join(__dirname, '../renderer/pages', 'index.html'))
 }
 
@@ -80,5 +100,10 @@ app.whenReady().then(() => {
   createWindow()
 })
 
-app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit() })
-app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
+app.on('window-all-closed', () => { 
+  if (process.platform !== 'darwin') app.quit() 
+})
+
+app.on('activate', () => { 
+  if (BrowserWindow.getAllWindows().length === 0) createWindow() 
+})

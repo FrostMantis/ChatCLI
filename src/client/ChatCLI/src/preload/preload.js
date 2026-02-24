@@ -1,6 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 const api = require('../renderer/scripts/api.js');
 const { WS_URL, BASE_URL, CALL_URL } = require('./config.js');
+const WebSocket = require('ws');
 
 /* -------- Expose REST API wrapper -------- */
 contextBridge.exposeInMainWorld('api', {
@@ -13,9 +14,6 @@ contextBridge.exposeInMainWorld('api', {
   fetchMessages:    api.fetchMessages,
   createChat:       api.createChat,
   refreshToken:     api.refreshToken,
-  getSessionToken:    () => sessionToken,
-  setAccessToken:    (tok) => { sessionToken = tok; },
-  setRefreshToken:    (tok) => { refreshTokenValue = tok; },
   initializeTokens:   api.initializeTokens,
   WS_URL,
   BASE_URL,
@@ -28,8 +26,6 @@ contextBridge.exposeInMainWorld('auth', {
   refresh: (accountId) => ipcRenderer.invoke('auth:refresh', { accountId }),
   clear: (accountId) => ipcRenderer.invoke('auth:clear', { accountId }),
 })
-
-const WebSocket = require('ws');
 
 contextBridge.exposeInMainWorld('chatAPI', {
   connect: (token) => {
@@ -48,4 +44,4 @@ contextBridge.exposeInMainWorld('secureStore', {
   set:    (account, token) => ipcRenderer.invoke('secureStore:set', account, token),
   get:    (account)        => ipcRenderer.invoke('secureStore:get', account),
   delete: (account)        => ipcRenderer.invoke('secureStore:delete', account),
-})
+});

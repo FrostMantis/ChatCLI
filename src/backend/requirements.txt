@@ -4,7 +4,7 @@ Flask-Limiter==3.12.0
 mariadb>=1.1.14
 bcrypt==4.3.0
 waitress==3.0.2
-python-dotenv==1.1.1
+python-dotenv==1.2.2
 asyncmy>=0.2.10
 uvicorn==0.34.3
 websockets==15.0.1

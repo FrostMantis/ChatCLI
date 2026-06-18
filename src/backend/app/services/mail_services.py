@@ -65,7 +65,7 @@ This code is valid for 5 minutes. If you didn’t request it, you can safely ign
 
 Best regards,
 The ChatCLI Team
-https://github.com/SciTechMC/ChatCLI
+https://github.com/FrostMantis/ChatCLI
 """
     send_email(subject, body, recipient)
 
@@ -88,7 +88,7 @@ If you didn’t request this, simply ignore this email.
 
 Best regards,
 The ChatCLI Team
-https://github.com/SciTechMC/ChatCLI
+https://github.com/FrostMantis/ChatCLI
 """
     send_email(subject, body, recipient)
 
@@ -113,7 +113,7 @@ We’re excited to announce a new ChatCLI release! Highlights include:
 • Performance improvements
 
 For full details, visit our GitHub repository:
-https://github.com/SciTechMC/ChatCLI
+https://github.com/FrostMantis/ChatCLI
 
 Thank you for using ChatCLI!
 
@@ -146,7 +146,7 @@ If you did not request this, please contact support immediately.
 
 Best regards,
 The ChatCLI Team
-https://github.com/SciTechMC/ChatCLI
+https://github.com/FrostMantis/ChatCLI
 """
     send_email(subject, body, recipient)
 
@@ -166,7 +166,7 @@ If you did not request this, please contact support immediately.
 
 Best regards,
 The ChatCLI Team
-https://github.com/SciTechMC/ChatCLI
+https://github.com/FrostMantis/ChatCLI
 """
     send_email(subject, body, recipient)
 
@@ -188,6 +188,6 @@ This code is valid for 5 minutes. If you did not request this change, please ign
 
 Best regards,
 The ChatCLI Team
-https://github.com/SciTechMC/ChatCLI
+https://github.com/FrostMantis/ChatCLI
 """
     send_email(subject, body, recipient)

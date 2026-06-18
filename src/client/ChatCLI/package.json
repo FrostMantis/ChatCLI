@@ -2,7 +2,7 @@
   "name": "chatcli",
   "version": "0.4.1-beta",
   "description": "ChatCLI",
-  "author": "SciTechMC <jan.vdcg@gmail.com>",
+  "author": "FrostMantis <jan.vdcg@gmail.com>",
   "homepage": "http://chat.puam.be",
   "main": "./src/main/main.js",
   "scripts": {
@@ -23,7 +23,7 @@
     "electron-builder": "^26.4.0"
   },
   "build": {
-    "appId": "com.scitechmc.chatcli",
+    "appId": "com.frostmantis.chatcli",
     "productName": "ChatCLI",
     "files": [
       "**/*"
@@ -43,7 +43,7 @@
       "target": [
         "deb"
       ],
-      "maintainer": "SciTechMC <jan.vdcg@gmail.com>",
+      "maintainer": "FrostMantis <jan.vdcg@gmail.com>",
       "category": "Network"
     },
     "nsis": {

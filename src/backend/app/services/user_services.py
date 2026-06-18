@@ -428,8 +428,7 @@ def reset_password_request(data: dict) -> dict:
         current_app.logger.error("Error during password-reset request", exc_info=e)
         raise APIError()
 
-    if not send_password_reset_email(user["username"], reset_plain, user["email"]):
-        raise APIError("Failed to send password reset email.")
+    send_password_reset_email(user["username"], reset_plain, user["email"])
 
     return {"message": "Password reset email sent!"}
 

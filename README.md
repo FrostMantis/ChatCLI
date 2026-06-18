@@ -299,6 +299,8 @@ VoIP is a beta feature that requires a running LiveKit server.
 - Check that your LiveKit instance is reachable from the server: `curl http://your-livekit-host:7880`.
 - Firewall rules must allow WebRTC UDP traffic (ports 50000–60000 by default for LiveKit).
 
+If none of the above resolves the issue, there is currently no further workaround. VoIP is still in early development and known edge cases may not yet be addressed.
+
 ---
 
 ### 5 — `ModuleNotFoundError` on startup

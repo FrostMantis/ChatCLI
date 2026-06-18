@@ -409,7 +409,22 @@ document.addEventListener('DOMContentLoaded', async () => {
                     stopRingback();
                   }
 
-                  await joinCall({ callId: call_id, isInitiator });
+                  // Get LiveKit credentials from store (set by call_invite or call_accepted)
+                  const lk_url = store.call.outgoingUrl || store.call.incomingUrl;
+                  const lk_token = store.call.outgoingToken || store.call.incomingToken;
+
+                  if (!lk_url || !lk_token) {
+                      console.error('[CALL] Missing LiveKit URL or token:', { lk_url, lk_token });
+                      showToast('Call setup incomplete', 'error');
+                      break;
+                  }
+
+                  try {
+                      await joinCall(lk_url, lk_token);
+                  } catch (error) {
+                      console.error('[CALL] Failed to join at active state:', error);
+                      showToast('Failed to join call', 'error');
+                  }
                   updateCallButton();
                   break;
               }
@@ -427,30 +442,44 @@ document.addEventListener('DOMContentLoaded', async () => {
               // Incoming call invitation from another user
               const { chatID, call_id, caller, lk_token, lk_url } = msg;
               
-              // Store call credentials and ID
-              if (self === (caller || '').toLowerCase()) {
+              // Check if this is the caller
+              const isCallerSelf = self === (caller || '').toLowerCase();
+              
+              if (isCallerSelf) {
+                  // Caller - automatically connect to the call
                   store.call.currentCallId = call_id;
                   store.call.outgoingToken = lk_token;
                   store.call.outgoingUrl = lk_url;
                   store.callState = 'outgoing';
                   store.callActiveChatID = chatID;
                   playRingback();
-              } else {
-                  store.call.incomingToken = lk_token;
-                  store.call.incomingUrl = lk_url;
-                  store.call.incomingChatID = chatID;
-                  store.call.incomingCaller = caller;
-                  store.call.incomingCallId = call_id;
-                  store.callIncoming = { chatID, from: caller, call_id };
-                  store.callState = 'incoming';
-                  store.callActiveChatID = chatID;
-                  playRingtone();
-                  showIncomingCallModal(caller, 'is calling you…');
+                  
+                  // Caller automatically joins the room
+                  try {
+                      await joinCall(lk_url, lk_token);
+                  } catch (error) {
+                      console.error('[CALL] Caller failed to join:', error);
+                      showToast('Failed to start call', 'error');
+                  }
+                  // Don't process further for caller
+                  updateCallButton();
+                  break;
               }
               
+              // Other recipients - show incoming call modal
+              store.call.incomingToken = lk_token;
+              store.call.incomingUrl = lk_url;
+              store.call.incomingChatID = chatID;
+              store.call.incomingCaller = caller;
+              store.call.incomingCallId = call_id;
+              store.callIncoming = { chatID, from: caller, call_id };
+              store.callState = 'incoming';
+              store.callActiveChatID = chatID;
+              playRingtone();
+              showIncomingCallModal(caller, 'is calling you…');
               updateCallButton();
               
-              // Dispatch event for anyone listening
+              // Dispatch event only for non-callers
               window.dispatchEvent(new CustomEvent('call:incoming', {
                 detail: { chatID, from: caller, call_id, lk_token, lk_url }
               }));
@@ -726,3 +755,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     );
   });
 });
+win.webContents.executeJavaScript(`
+  (function() {
+    if (window.LiveKit || window.LiveKitClient) return;
+    
+    // Create a script tag that hides the CommonJS environment
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/livekit-client@2.17.2/dist/livekit-client.umd.min.js';
+    
+    // This is the key: Force UMD to use the window global
+    const wrapper = "var module = undefined; var exports = undefined;";
+    
+    script.onload = () => {
+      console.log('[PRELOAD] LiveKit loaded. Available as:', 
+        window.LiveKit ? 'LiveKit' : (window.LiveKitClient ? 'LiveKitClient' : 'None'));
+    };
+    document.head.appendChild(script);
+  })();
+`);

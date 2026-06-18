@@ -295,7 +295,49 @@
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/livekit-client@2.17.2/dist/livekit-client.umd.min.js"></script>
+  <!-- LiveKit client library with error handling -->
+  <script>
+    // Preload LiveKit with enhanced error handling
+    window.liveKitLoadPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/livekit-client@2.17.2/dist/livekit-client.umd.js';
+      script.async = true;
+      script.crossOrigin = 'anonymous';
+      script.referrerPolicy = 'no-referrer';
+      
+      let timeoutId = setTimeout(() => {
+        console.warn('[LiveKit Pre-loader] CDN load timeout after 10s, will retry dynamically');
+        reject(new Error('CDN timeout'));
+      }, 10000);
+      
+      script.onload = () => {
+        clearTimeout(timeoutId);
+        console.log('[LiveKit Pre-loader] CDN script loaded');
+        if (window.LiveKit) {
+          console.log('[LiveKit Pre-loader] window.LiveKit is available');
+          resolve(window.LiveKit);
+        } else {
+          console.warn('[LiveKit Pre-loader] Script loaded but window.LiveKit not found, waiting...');
+          // Give it a bit more time to initialize
+          setTimeout(() => {
+            if (window.LiveKit) {
+              resolve(window.LiveKit);
+            } else {
+              reject(new Error('window.LiveKit not defined after load'));
+            }
+          }, 500);
+        }
+      };
+      
+      script.onerror = (error) => {
+        clearTimeout(timeoutId);
+        console.error('[LiveKit Pre-loader] Script load error:', error);
+        reject(new Error('CDN load failed'));
+      };
+      
+      document.head.appendChild(script);
+    });
+  </script>
   <script type="module" src="../scripts/main.js"></script>
   <!-- SVG sprite (hidden) -->
   <svg xmlns="http://www.w3.org/2000/svg" style="display:none">

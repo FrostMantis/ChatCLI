@@ -88,6 +88,37 @@ function createWindow() {
     }
   });
 
+  // Preload LiveKit globally when DOM is ready
+  win.webContents.once('dom-ready', () => {
+    win.webContents.executeJavaScript(`
+      (function() {
+        if (window.LiveKit) {
+          console.log('[PRELOAD] LiveKit already available');
+          return;
+        }
+        
+        console.log('[PRELOAD] Injecting LiveKit script globally');
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/livekit-client@2.17.2/dist/livekit-client.umd.js';
+        script.async = true;
+        script.onload = () => {
+          console.log('[PRELOAD] LiveKit script injected successfully');
+        };
+        script.onerror = (err) => {
+          console.error('[PRELOAD] Failed to inject LiveKit:', err);
+        };
+        
+        if (document.head) {
+          document.head.appendChild(script);
+        } else {
+          document.addEventListener('DOMContentLoaded', () => {
+            document.head.appendChild(script);
+          });
+        }
+      })();
+    `);
+  });
+
   // win.removeMenu()
   win.loadFile(path.join(__dirname, '../renderer/pages', 'index.html'))
 }

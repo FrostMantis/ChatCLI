@@ -6,7 +6,7 @@ base = Blueprint("base", __name__)
 
 @base.route("/", methods=["GET"])
 def index():
-    return render_template("welcome.html")
+    return render_template("index.html")
 
 @base.route("/verify-connection", methods=["GET", "POST"])
 def route_verify_connection():

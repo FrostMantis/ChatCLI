@@ -1,0 +1,1622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ChatCLI — Self-hosted desktop chat</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg:         #131519;
+  --surface:    #1a1d22;
+  --surface2:   #1f2229;
+  --border:     rgba(255,255,255,0.06);
+  --border-md:  rgba(255,255,255,0.11);
+
+  --accent:     #5b86ff;
+  --accent-dim: rgba(91,134,255,0.12);
+  --accent-glow:rgba(91,134,255,0.25);
+
+  --text:       #e6e8ec;
+  --text-2:     #aab0b8;
+  --text-3:     #555b66;
+
+  --font-display: 'Syne', sans-serif;
+  --font-body:    'Inter', sans-serif;
+  --font-mono:    'JetBrains Mono', monospace;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+
+  --max-w: 1100px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; font-size: 16px; }
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.65;
+  overflow-x: hidden;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+img { max-width: 100%; display: block; }
+code, pre { font-family: var(--font-mono); font-size: 0.875em; }
+
+.container { max-width: var(--max-w); margin: 0 auto; padding: 0 2rem; }
+
+.section { padding: 96px 0; }
+.section--alt {
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.section-label {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  margin-bottom: 12px;
+}
+
+.section-title {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 4vw, 2.75rem);
+  font-weight: 700;
+  line-height: 1.15;
+  margin-bottom: 1rem;
+  color: var(--text);
+}
+
+.section-sub {
+  font-size: 1.05rem;
+  color: var(--text-2);
+  max-width: 560px;
+  line-height: 1.7;
+}
+
+/* ── NAVBAR ── */
+.navbar {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  background: rgba(19,21,25,0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+}
+
+.navbar__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 64px;
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+.navbar__logo {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.navbar__logo-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--accent);
+  border-radius: 50%;
+}
+
+.navbar__nav {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  list-style: none;
+}
+
+.navbar__nav a {
+  font-size: 0.875rem;
+  color: var(--text-2);
+  transition: color 0.2s;
+}
+
+.navbar__nav a:hover { color: var(--text); text-decoration: none; }
+
+.navbar__cta {
+  font-family: var(--font-display);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--bg) !important;
+  background: var(--accent);
+  padding: 8px 20px;
+  border-radius: var(--radius-sm);
+  transition: opacity 0.2s;
+}
+
+.navbar__cta:hover { opacity: 0.85; text-decoration: none; }
+
+/* ── HERO ── */
+.hero {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 120px 2rem 80px;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+  background-size: 60px 60px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, black, transparent);
+  pointer-events: none;
+}
+
+.hero::after {
+  content: '';
+  position: absolute;
+  width: 600px;
+  height: 400px;
+  background: radial-gradient(ellipse, var(--accent-glow), transparent 70%);
+  top: 30%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.hero__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--accent);
+  background: var(--accent-dim);
+  border: 1px solid var(--accent-glow);
+  border-radius: 999px;
+  padding: 6px 16px;
+  margin-bottom: 2rem;
+  position: relative;
+  z-index: 1;
+}
+
+.hero__badge-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--accent);
+  border-radius: 50%;
+  animation: blink 2s ease-in-out infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.hero__title {
+  font-family: var(--font-display);
+  font-size: clamp(3.5rem, 9vw, 7rem);
+  font-weight: 800;
+  line-height: 0.95;
+  letter-spacing: -0.03em;
+  margin-bottom: 1.5rem;
+  position: relative;
+  z-index: 1;
+}
+
+.hero__title span { color: var(--accent); }
+
+.hero__sub {
+  font-size: clamp(1.05rem, 2vw, 1.25rem);
+  color: var(--text-2);
+  max-width: 540px;
+  line-height: 1.65;
+  margin-bottom: 2.5rem;
+  position: relative;
+  z-index: 1;
+}
+
+.hero__actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  position: relative;
+  z-index: 1;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 12px 28px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  text-decoration: none !important;
+}
+
+.btn--primary { background: var(--accent); color: var(--bg); }
+.btn--primary:hover { opacity: 0.88; transform: translateY(-1px); }
+
+.btn--ghost {
+  background: transparent;
+  color: var(--text-2);
+  border: 1px solid var(--border-md);
+}
+
+.btn--ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+.hero__mockup {
+  position: relative;
+  z-index: 1;
+  margin-top: 4rem;
+  width: 100%;
+  max-width: 880px;
+  background: var(--surface2);
+  border: 1px solid var(--border-md);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  box-shadow: 0 0 0 1px var(--border), 0 40px 80px rgba(0,0,0,0.5);
+}
+
+.hero__mockup-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.hero__mockup-bar span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--border-md);
+}
+
+.hero__mockup-bar span:first-child  { background: #ff5f57; }
+.hero__mockup-bar span:nth-child(2) { background: #febc2e; }
+.hero__mockup-bar span:nth-child(3) { background: #28c840; }
+
+.hero__mockup-screen {
+  height: 420px;
+  background: linear-gradient(135deg, var(--surface2) 0%, rgba(91,134,255,0.03) 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}
+
+.hero__mockup-screen svg {
+  opacity: 0.18;
+  width: 48px;
+  height: 48px;
+}
+
+/* ── STATS ── */
+.stats {
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 48px 0;
+}
+
+.stats__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 2rem;
+  text-align: center;
+}
+
+.stat__number {
+  font-family: var(--font-display);
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: var(--accent);
+  line-height: 1;
+  margin-bottom: 6px;
+}
+
+.stat__label { font-size: 0.875rem; color: var(--text-2); }
+
+/* ── FEATURES ── */
+.features__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+  margin-top: 3.5rem;
+}
+
+.feature-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  transition: border-color 0.25s, transform 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+
+.feature-card:hover {
+  border-color: var(--accent-glow);
+  transform: translateY(-2px);
+}
+
+.feature-card::before {
+  content: '';
+  position: absolute;
+  top: -30px; left: -30px;
+  width: 100px; height: 100px;
+  background: radial-gradient(circle, var(--accent-dim), transparent 70%);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.feature-card:hover::before { opacity: 1; }
+
+.feature-icon {
+  width: 44px;
+  height: 44px;
+  background: var(--accent-dim);
+  border: 1px solid var(--accent-glow);
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.feature-title {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  color: var(--text);
+}
+
+.feature-desc { font-size: 0.9rem; color: var(--text-2); line-height: 1.65; }
+
+/* ── TECH STACK ── */
+.tech-stack {
+  padding: 60px 0;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+}
+
+.tech-stack__label {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  margin-bottom: 1.5rem;
+}
+
+.tech-stack__pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+
+.tech-pill {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--text-2);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 16px;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.tech-pill:hover { border-color: var(--accent-glow); color: var(--accent); }
+
+/* ── INSTALLATION ── */
+.install-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  margin-top: 3rem;
+}
+
+.install-step {
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  gap: 1.25rem;
+  align-items: flex-start;
+}
+
+.step-num {
+  width: 48px; height: 48px;
+  border-radius: 50%;
+  background: var(--accent-dim);
+  border: 1px solid var(--accent-glow);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--accent);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.step-title {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--text);
+}
+
+.step-desc { font-size: 0.9rem; color: var(--text-2); margin-bottom: 12px; line-height: 1.6; }
+
+.code-block {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.code-block__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.code-block__lang {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.code-block__copy {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--accent);
+  background: var(--accent-dim);
+  border: 1px solid var(--accent-glow);
+  border-radius: var(--radius-sm);
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.code-block__copy:hover { opacity: 0.75; }
+
+.code-block__body { padding: 16px 20px; overflow-x: auto; }
+
+.code-block__body pre {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: rgba(230,232,236,0.85);
+  line-height: 1.75;
+  white-space: pre;
+}
+
+.c-comment { color: var(--text-3); }
+.c-cmd     { color: var(--accent); }
+.c-string  { color: #93c5fd; }
+.c-flag    { color: #f9a8d4; }
+.c-path    { color: #86efac; }
+
+.install-tabs {
+  display: flex;
+  gap: 8px;
+  margin-top: 3rem;
+  margin-bottom: 1.5rem;
+}
+
+.install-tab {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-2);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.install-tab.active {
+  background: var(--accent-dim);
+  border-color: var(--accent-glow);
+  color: var(--accent);
+}
+
+.install-tab:hover:not(.active) {
+  border-color: var(--border-md);
+  color: var(--text);
+}
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ── DOCS ACCORDION ── */
+.doc-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 3rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.doc-item__toggle {
+  width: 100%;
+  background: var(--surface2);
+  border: none;
+  color: var(--text);
+  padding: 18px 24px;
+  text-align: left;
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.2s;
+}
+
+.doc-item__toggle:hover { background: var(--surface); }
+.doc-item__toggle.active { color: var(--accent); }
+
+.doc-item__toggle-icon {
+  font-size: 1.2rem;
+  color: var(--text-3);
+  transition: transform 0.25s;
+  flex-shrink: 0;
+}
+
+.doc-item__toggle.active .doc-item__toggle-icon {
+  transform: rotate(180deg);
+  color: var(--accent);
+}
+
+.doc-item__body {
+  display: none;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 20px 24px;
+  font-size: 0.9rem;
+  color: var(--text-2);
+  line-height: 1.7;
+}
+
+.doc-item__body.open { display: block; }
+
+.doc-item__body h4 {
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 16px 0 6px;
+}
+
+.doc-item__body h4:first-child { margin-top: 0; }
+
+.doc-item__body ul {
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.doc-item__body li { list-style: disc; }
+
+.doc-item__body code {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  color: var(--accent);
+  font-size: 0.85em;
+}
+
+.api-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  font-size: 0.85rem;
+}
+
+.api-table th {
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-3);
+  padding: 6px 12px 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.api-table td {
+  padding: 8px 12px 8px 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-2);
+  vertical-align: top;
+}
+
+.api-table td:first-child { font-family: var(--font-mono); color: var(--accent); white-space: nowrap; }
+.api-table .method {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.api-table .method.post { color: #86efac; border-color: rgba(134,239,172,0.2); background: rgba(134,239,172,0.07); }
+.api-table .method.get  { color: #93c5fd; border-color: rgba(147,197,253,0.2); background: rgba(147,197,253,0.07); }
+
+/* ── ABOUT ── */
+.team-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.5rem;
+  margin-top: 3rem;
+}
+
+.team-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 28px 24px;
+  text-align: center;
+  transition: border-color 0.25s;
+}
+
+.team-card:hover { border-color: var(--accent-glow); }
+
+.team-avatar {
+  width: 72px; height: 72px;
+  border-radius: 50%;
+  background: var(--accent-dim);
+  border: 2px solid var(--accent-glow);
+  margin: 0 auto 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--accent);
+}
+
+.team-name {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.team-role { font-size: 0.82rem; color: var(--text-2); margin-bottom: 12px; }
+
+.team-links { display: flex; justify-content: center; gap: 10px; }
+
+.team-link {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.team-link:hover {
+  color: var(--accent);
+  border-color: var(--accent-glow);
+  text-decoration: none;
+}
+
+.project-context {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 32px;
+  margin-top: 3rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+}
+
+.context-item__label {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin-bottom: 4px;
+}
+
+.context-item__value { font-size: 0.95rem; color: var(--text); }
+
+/* ── FOOTER ── */
+.footer {
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding: 48px 0 32px;
+}
+
+.footer__inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 2rem;
+  margin-bottom: 3rem;
+}
+
+.footer__brand-name {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+
+.footer__brand-sub {
+  font-size: 0.85rem;
+  color: var(--text-2);
+  max-width: 280px;
+  line-height: 1.6;
+}
+
+.footer__links-title {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-3);
+  margin-bottom: 12px;
+}
+
+.footer__links {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.footer__links a {
+  font-size: 0.875rem;
+  color: var(--text-2);
+  transition: color 0.2s;
+}
+
+.footer__links a:hover { color: var(--accent); text-decoration: none; }
+
+.footer__bottom {
+  border-top: 1px solid var(--border);
+  padding-top: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.footer__copy, .footer__right {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-3);
+}
+
+/* ── RESPONSIVE ── */
+@media (max-width: 768px) {
+  .navbar__nav { display: none; }
+  .hero__title { font-size: 3rem; }
+  .project-context { grid-template-columns: 1fr; gap: 1.25rem; }
+  .footer__inner { flex-direction: column; }
+  .install-tabs { flex-direction: column; }
+}
+</style>
+</head>
+<body>
+
+<!-- NAVBAR -->
+<nav class="navbar">
+  <div class="navbar__inner">
+    <div class="navbar__logo">
+      <div class="navbar__logo-dot"></div>
+      ChatCLI
+    </div>
+    <ul class="navbar__nav">
+      <li><a href="#features">Features</a></li>
+      <li><a href="#install">Installation</a></li>
+      <li><a href="#docs">Documentation</a></li>
+      <li><a href="#about">About</a></li>
+      <li><a href="https://github.com/FrostMantis/ChatCLI" target="_blank" class="navbar__cta">GitHub →</a></li>
+    </ul>
+  </div>
+</nav>
+
+
+<!-- HERO -->
+<section class="hero" id="home">
+
+  <div class="hero__badge">
+    <div class="hero__badge-dot"></div>
+    v0.4.1-beta · Open Source · GPLv3
+  </div>
+
+  <h1 class="hero__title">
+    Chat<span>CLI</span>
+  </h1>
+
+  <p class="hero__sub">
+    A self-hosted, cross-platform desktop chat app. Real-time messaging, group chats, and VoIP calls — all in one open-source client.
+  </p>
+
+  <div class="hero__actions">
+    <a href="#install" class="btn btn--primary">Download ↓</a>
+    <a href="https://github.com/FrostMantis/ChatCLI" target="_blank" class="btn btn--ghost">View on GitHub</a>
+  </div>
+
+  <div class="hero__mockup">
+    <div class="hero__mockup-bar">
+      <span></span><span></span><span></span>
+    </div>
+    <div class="hero__mockup-screen">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+      </svg>
+      Screenshot coming soon
+    </div>
+  </div>
+</section>
+
+
+<!-- STATS -->
+<section class="stats">
+  <div class="container">
+    <div class="stats__grid">
+      <div>
+        <div class="stat__number">0.4.1</div>
+        <div class="stat__label">Current beta version</div>
+      </div>
+      <div>
+        <div class="stat__number">9 800+</div>
+        <div class="stat__label">Lines of code</div>
+      </div>
+      <div>
+        <div class="stat__number">7+</div>
+        <div class="stat__label">Technologies used</div>
+      </div>
+      <div>
+        <div class="stat__number">GPLv3</div>
+        <div class="stat__label">Open-source license</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- FEATURES -->
+<section class="section" id="features">
+  <div class="container">
+
+    <div class="section-label">Features</div>
+    <h2 class="section-title">What ChatCLI does</h2>
+    <p class="section-sub">
+      A full-featured messaging client built around real-time WebSocket communication, running entirely on your own infrastructure.
+    </p>
+
+    <div class="features__grid">
+
+      <div class="feature-card">
+        <div class="feature-icon">💬</div>
+        <div class="feature-title">Real-time messaging</div>
+        <p class="feature-desc">Instant WebSocket-based delivery with typing indicators, live online presence, and full message history retrieval.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">👥</div>
+        <div class="feature-title">Group chats</div>
+        <p class="feature-desc">Create multi-user rooms, invite participants, and manage group membership — all from within the client.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">📞</div>
+        <div class="feature-title">VoIP calling <span style="font-size:0.75rem;color:var(--text-3);font-weight:400">(beta)</span></div>
+        <p class="feature-desc">In-app voice calls powered by LiveKit. Peer-to-peer audio with signalling handled through the WebSocket server.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">🔍</div>
+        <div class="feature-title">Search &amp; archiving</div>
+        <p class="feature-desc">Search through your conversations to jump back into any chat instantly. Archive inactive chats to keep your list clean.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">🔐</div>
+        <div class="feature-title">Secure authentication</div>
+        <p class="feature-desc">Token-based auth with email verification, persistent login across sessions, password reset by email, and rate-limited endpoints.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">⚙️</div>
+        <div class="feature-title">Account management</div>
+        <p class="feature-desc">Update your username or email, resend verification, and delete or deactivate your account — all directly from the client.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+
+<!-- TECH STACK -->
+<div class="tech-stack">
+  <div class="container">
+    <div class="tech-stack__label">Tech stack</div>
+    <div class="tech-stack__pills">
+      <span class="tech-pill">Electron</span>
+      <span class="tech-pill">Python 3.12</span>
+      <span class="tech-pill">Flask</span>
+      <span class="tech-pill">FastAPI</span>
+      <span class="tech-pill">MariaDB</span>
+      <span class="tech-pill">WebSocket</span>
+      <span class="tech-pill">LiveKit</span>
+      <span class="tech-pill">Node.js</span>
+      <span class="tech-pill">electron-builder</span>
+    </div>
+  </div>
+</div>
+
+
+<!-- INSTALLATION -->
+<section class="section section--alt" id="install">
+  <div class="container">
+
+    <div class="section-label">Installation</div>
+    <h2 class="section-title">Get started</h2>
+    <p class="section-sub">
+      Download the client for your platform, or self-host the backend on your own server.
+    </p>
+
+    <div class="install-tabs">
+      <button class="install-tab active" onclick="switchTab(this, 'tab-client')">Client (end user)</button>
+      <button class="install-tab" onclick="switchTab(this, 'tab-server-linux')">Backend — Linux</button>
+      <button class="install-tab" onclick="switchTab(this, 'tab-server-win')">Backend — Windows</button>
+    </div>
+
+    <!-- CLIENT TAB -->
+    <div id="tab-client" class="tab-panel active">
+      <div class="install-steps">
+
+        <div class="install-step">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <div class="step-title">Download the installer</div>
+            <p class="step-desc">Go to the GitHub releases page and download the build for your platform.</p>
+            <div class="code-block">
+              <div class="code-block__header">
+                <span class="code-block__lang">releases</span>
+              </div>
+              <div class="code-block__body">
+                <pre><span class="c-comment"># Windows</span>
+<span class="c-path">ChatCLI Setup 0.4.1-beta.exe</span>   <span class="c-comment"># installer (recommended)</span>
+<span class="c-path">ChatCLI-0.4.1-beta-win-portable.zip</span>
+
+<span class="c-comment"># Linux</span>
+<span class="c-path">chatcli_0.4.1-beta_amd64.deb</span>   <span class="c-comment"># Debian / Ubuntu</span>
+<span class="c-path">chatcli_0.4.1-beta_linux_portable.zip</span></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="install-step">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <div class="step-title">Install and launch</div>
+            <p class="step-desc">Run the installer (Windows) or install the package (Linux). No additional dependencies required.</p>
+            <div class="code-block">
+              <div class="code-block__header">
+                <span class="code-block__lang">bash</span>
+                <button class="code-block__copy" onclick="copyCode(this)">Copy</button>
+              </div>
+              <div class="code-block__body">
+                <pre><span class="c-comment"># Linux .deb</span>
+<span class="c-cmd">sudo dpkg -i</span> chatcli_0.4.1-beta_amd64.deb</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="install-step">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <div class="step-title">Connect to chat.puam.be</div>
+            <p class="step-desc">Register an account or log in. The client connects to the hosted server at <code>chat.puam.be</code> by default — no configuration needed.</p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- SERVER TAB — LINUX -->
+    <div id="tab-server-linux" class="tab-panel">
+      <div class="install-steps">
+
+        <div class="install-step">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <div class="step-title">Prerequisites</div>
+            <p class="step-desc">Make sure the following are installed before continuing.</p>
+            <div class="code-block">
+              <div class="code-block__header">
+                <span class="code-block__lang">bash</span>
+                <button class="code-block__copy" onclick="copyCode(this)">Copy</button>
+              </div>
+              <div class="code-block__body">
+                <pre><span class="c-cmd">python3</span> <span class="c-flag">--version</span>   <span class="c-comment"># >= 3.12.0</span>
+<span class="c-cmd">mariadb</span>  <span class="c-flag">--version</span>   <span class="c-comment"># >= 10.6</span>
+<span class="c-cmd">git</span>      <span class="c-flag">--version</span>
+
+<span class="c-comment"># Install MariaDB if needed (Debian / Ubuntu)</span>
+<span class="c-cmd">sudo apt install</span> mariadb-server
+<span class="c-cmd">sudo systemctl start</span> mariadb</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="install-step">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <div class="step-title">Clone the repository</div>
+            <div class="code-block">
+              <div class="code-block__header">
+                <span class="code-block__lang">bash</span>
+                <button class="code-block__copy" onclick="copyCode(this)">Copy</button>
+              </div>
+              <div class="code-block__body">
+                <pre><span class="c-cmd">git</span> clone https://github.com/FrostMantis/ChatCLI.git
+<span class="c-cmd">cd</span> ChatCLI/src/backend</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="install-step">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <div class="step-title">Install Python dependencies</div>
+            <div class="code-block">
+              <div class="code-block__header">
+                <span class="code-block__lang">bash</span>
+                <button class="code-block__copy" onclick="copyCode(this)">Copy</button>
+              </div>
+              <div class="code-block__body">
+                <pre><span class="c-cmd">pip3 install</span> <span class="c-flag">-r</span> requirements.txt</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="install-step">
+          <div class="step-num">4</div>
+          <div class="step-content">
+            <div class="step-title">Initialize the database</div>
+            <p class="step-desc">Creates the database, tables, and app user. Also generates a <code>.env</code> with safe defaults on first run.</p>
+            <div class="code-block">
+              <div class="code-block__header">
+                <span class="code-block__lang">bash</span>
+                <button class="code-block__copy" onclick="copyCode(this)">Copy</button>
+              </div>
+              <div class="code-block__body">
+                <pre><span class="c-cmd">python3</span> install_update_server.py</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="install-step">
+          <div class="step-num">5</div>
+          <div class="step-content">
+            <div class="step-title">Configure <code>.env</code></div>
+            <p class="step-desc">Edit the generated <code>.env</code> and set your public URL, email credentials, and LiveKit keys.</p>
+            <div class="code-block">
+              <div class="code-block__header">
+                <span class="code-block__lang">.env</span>
+              </div>
+              <div class="code-block__body">
+                <pre>PUB_URL=<span class="c-string">your.domain.com</span>
+EMAIL_USER=<span class="c-string">your@email.com</span>
+EMAIL_PASSWORD=<span class="c-string">app_password</span>
+LIVEKIT_URL=<span class="c-string">ws://your-livekit-host:7880</span>
+LIVEKIT_KEY=<span class="c-string">your_key</span>
+LIVEKIT_SECRET=<span class="c-string">your_secret</span></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="install-step">
+          <div class="step-num">6</div>
+          <div class="step-content">
+            <div class="step-title">Start the servers</div>
+            <p class="step-desc"><code>run_server.py</code> launches both the HTTP API (port 5123) and WebSocket server (port 8765) in one command. Press <code>Ctrl+C</code> to stop both.</p>
+            <div class="code-block">
+              <div class="code-block__header">
+                <span class="code-block__lang">bash</span>
+                <button class="code-block__copy" onclick="copyCode(this)">Copy</button>
+              </div>
+              <div class="code-block__body">
+                <pre><span class="c-cmd">python3</span> run_server.py</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- SERVER TAB — WINDOWS -->
+    <div id="tab-server-win" class="tab-panel">
+      <div class="install-steps">
+
+        <div class="install-step">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <div class="step-title">Prerequisites</div>
+            <p class="step-desc">Download and install the following before continuing.</p>
+            <div class="code-block">
+              <div class="code-block__header">
+                <span class="code-block__lang">powershell</span>
+                <button class="code-block__copy" onclick="copyCode(this)">Copy</button>
+              </div>
+              <div class="code-block__body">
+                <pre><span class="c-cmd">python</span>  <span class="c-flag">--version</span>   <span class="c-comment"># >= 3.12.0  — python.org</span>
+<span class="c-cmd">mariadb</span> <span class="c-flag">--version</span>   <span class="c-comment"># >= 10.6    — mariadb.org</span>
+<span class="c-cmd">git</span>     <span class="c-flag">--version</span>   <span class="c-comment"># git-scm.com</span></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="install-step">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <div class="step-title">Clone the repository</div>
+            <div class="code-block">
+              <div class="code-block__header">
+                <span class="code-block__lang">powershell</span>
+                <button class="code-block__copy" onclick="copyCode(this)">Copy</button>
+              </div>
+              <div class="code-block__body">
+                <pre><span class="c-cmd">git</span> clone https://github.com/FrostMantis/ChatCLI.git
+<span class="c-cmd">cd</span> ChatCLI\src\backend</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="install-step">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <div class="step-title">Install Python dependencies</div>
+            <div class="code-block">
+              <div class="code-block__header">
+                <span class="code-block__lang">powershell</span>
+                <button class="code-block__copy" onclick="copyCode(this)">Copy</button>
+              </div>
+              <div class="code-block__body">
+                <pre><span class="c-cmd">pip install</span> <span class="c-flag">-r</span> requirements.txt</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="install-step">
+          <div class="step-num">4</div>
+          <div class="step-content">
+            <div class="step-title">Initialize the database</div>
+            <p class="step-desc">Creates the database, tables, and app user. Also generates a <code>.env</code> with safe defaults on first run.</p>
+            <div class="code-block">
+              <div class="code-block__header">
+                <span class="code-block__lang">powershell</span>
+                <button class="code-block__copy" onclick="copyCode(this)">Copy</button>
+              </div>
+              <div class="code-block__body">
+                <pre><span class="c-cmd">python</span> install_update_server.py</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="install-step">
+          <div class="step-num">5</div>
+          <div class="step-content">
+            <div class="step-title">Configure <code>.env</code></div>
+            <p class="step-desc">Edit the generated <code>.env</code> and set your public URL, email credentials, and LiveKit keys.</p>
+            <div class="code-block">
+              <div class="code-block__header">
+                <span class="code-block__lang">.env</span>
+              </div>
+              <div class="code-block__body">
+                <pre>PUB_URL=<span class="c-string">your.domain.com</span>
+EMAIL_USER=<span class="c-string">your@email.com</span>
+EMAIL_PASSWORD=<span class="c-string">app_password</span>
+LIVEKIT_URL=<span class="c-string">ws://your-livekit-host:7880</span>
+LIVEKIT_KEY=<span class="c-string">your_key</span>
+LIVEKIT_SECRET=<span class="c-string">your_secret</span></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="install-step">
+          <div class="step-num">6</div>
+          <div class="step-content">
+            <div class="step-title">Start the servers</div>
+            <p class="step-desc"><code>run_server.py</code> opens two CMD windows — one for the HTTP API (port 5123) and one for the WebSocket server (port 8765).</p>
+            <div class="code-block">
+              <div class="code-block__header">
+                <span class="code-block__lang">powershell</span>
+                <button class="code-block__copy" onclick="copyCode(this)">Copy</button>
+              </div>
+              <div class="code-block__body">
+                <pre><span class="c-cmd">python</span> run_server.py</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</section>
+
+
+<!-- DOCUMENTATION -->
+<section class="section" id="docs">
+  <div class="container">
+
+    <div class="section-label">Documentation</div>
+    <h2 class="section-title">Technical reference</h2>
+    <p class="section-sub">
+      Architecture overview, API reference, and environment configuration for ChatCLI.
+    </p>
+
+    <div class="doc-sections">
+
+      <div class="doc-item">
+        <button class="doc-item__toggle active" onclick="toggleDoc(this)">
+          Project structure
+          <span class="doc-item__toggle-icon">▾</span>
+        </button>
+        <div class="doc-item__body open">
+          <h4>Repository layout</h4>
+          <p>The project is split into two independent parts under <code>src/</code>.</p>
+          <ul>
+            <li><code>src/backend/</code> — Python server (Flask API + FastAPI WebSocket)</li>
+            <li><code>src/backend/app/routes/</code> — HTTP route blueprints</li>
+            <li><code>src/backend/app/services/</code> — business logic layer</li>
+            <li><code>src/backend/app/websockets/</code> — FastAPI WebSocket server (port 8765)</li>
+            <li><code>src/backend/app/database/</code> — MariaDB connection helpers</li>
+            <li><code>src/client/ChatCLI/</code> — Electron client</li>
+            <li><code>src/client/ChatCLI/src/renderer/</code> — UI pages, scripts, styles</li>
+            <li><code>src/client/ChatCLI/src/main/</code> — Electron main process</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="doc-item">
+        <button class="doc-item__toggle" onclick="toggleDoc(this)">
+          HTTP API — port 5123
+          <span class="doc-item__toggle-icon">▾</span>
+        </button>
+        <div class="doc-item__body">
+          <h4>Base</h4>
+          <table class="api-table">
+            <tr><th>Route</th><th>Method</th><th>Description</th></tr>
+            <tr><td>/</td><td><span class="method get">GET</span></td><td>Landing page</td></tr>
+            <tr><td>/verify-connection</td><td><span class="method get">GET</span> <span class="method post">POST</span></td><td>Check server reachability</td></tr>
+            <tr><td>/subscribe</td><td><span class="method post">POST</span></td><td>Register email for notifications</td></tr>
+          </table>
+          <h4>User — <code>/user</code></h4>
+          <table class="api-table">
+            <tr><th>Route</th><th>Method</th><th>Description</th></tr>
+            <tr><td>/user/register</td><td><span class="method post">POST</span></td><td>Create account, send verification email</td></tr>
+            <tr><td>/user/verify-email</td><td><span class="method post">POST</span></td><td>Confirm email with code</td></tr>
+            <tr><td>/user/resend-verification</td><td><span class="method post">POST</span></td><td>Resend verification email</td></tr>
+            <tr><td>/user/login</td><td><span class="method post">POST</span></td><td>Authenticate, receive session token</td></tr>
+            <tr><td>/user/refresh-token</td><td><span class="method get">GET</span></td><td>Rotate refresh token</td></tr>
+            <tr><td>/user/reset-password-request</td><td><span class="method post">POST</span></td><td>Trigger password reset email</td></tr>
+            <tr><td>/user/reset-password</td><td><span class="method get">GET</span> <span class="method post">POST</span></td><td>Complete password reset</td></tr>
+          </table>
+          <h4>Chat — <code>/chat</code></h4>
+          <table class="api-table">
+            <tr><th>Route</th><th>Method</th><th>Description</th></tr>
+            <tr><td>/chat/fetch-chats</td><td><span class="method post">POST</span></td><td>List user's chats</td></tr>
+            <tr><td>/chat/create-chat</td><td><span class="method post">POST</span></td><td>Start a new 1:1 conversation</td></tr>
+            <tr><td>/chat/create-group</td><td><span class="method post">POST</span></td><td>Create a group chat</td></tr>
+            <tr><td>/chat/add-members</td><td><span class="method post">POST</span></td><td>Add participants to a group</td></tr>
+            <tr><td>/chat/remove-members</td><td><span class="method post">POST</span></td><td>Remove participants from a group</td></tr>
+            <tr><td>/chat/messages</td><td><span class="method post">POST</span></td><td>Retrieve message history</td></tr>
+            <tr><td>/chat/archive</td><td><span class="method post">POST</span></td><td>Archive a chat</td></tr>
+            <tr><td>/chat/unarchive</td><td><span class="method post">POST</span></td><td>Restore an archived chat</td></tr>
+            <tr><td>/chat/fetch-archived</td><td><span class="method post">POST</span></td><td>List archived chats</td></tr>
+          </table>
+          <p style="margin-top:12px">All chat endpoints require a <code>session_token</code> field in the request body. Responses are JSON; errors return an <code>error</code> field.</p>
+        </div>
+      </div>
+
+      <div class="doc-item">
+        <button class="doc-item__toggle" onclick="toggleDoc(this)">
+          WebSocket API — port 8765
+          <span class="doc-item__toggle-icon">▾</span>
+        </button>
+        <div class="doc-item__body">
+          <h4>Endpoint</h4>
+          <p><code>wss://ws.chat.puam.be/ws</code> &nbsp;·&nbsp; local: <code>ws://localhost:8765/ws</code></p>
+          <h4>Authentication</h4>
+          <p>Send immediately after connecting:</p>
+          <ul>
+            <li><code>{"type": "auth", "token": "&lt;session_token&gt;"}</code></li>
+          </ul>
+          <h4>Client actions</h4>
+          <table class="api-table">
+            <tr><th>Action</th><th>Required fields</th><th>Description</th></tr>
+            <tr><td>join_chat</td><td>chatID</td><td>Subscribe to a chat room</td></tr>
+            <tr><td>leave_chat</td><td>chatID</td><td>Unsubscribe from a chat room</td></tr>
+            <tr><td>post_msg</td><td>chatID, text</td><td>Send a message</td></tr>
+          </table>
+          <h4>Server events</h4>
+          <ul>
+            <li>New messages are broadcast to all joined participants in the chat</li>
+            <li>Online presence and typing indicators are pushed as events</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="doc-item">
+        <button class="doc-item__toggle" onclick="toggleDoc(this)">
+          Environment configuration
+          <span class="doc-item__toggle-icon">▾</span>
+        </button>
+        <div class="doc-item__body">
+          <h4>Backend <code>.env</code> keys</h4>
+          <table class="api-table">
+            <tr><th>Key</th><th>Description</th></tr>
+            <tr><td>FLASK_ENV</td><td><code>dev</code> (debug mode) or <code>prod</code> (Waitress)</td></tr>
+            <tr><td>THREADS</td><td>Waitress worker threads (production only)</td></tr>
+            <tr><td>DB_HOST / DB_PORT</td><td>MariaDB connection (default: localhost:3306)</td></tr>
+            <tr><td>DB_NAME</td><td>Database name (default: chatcli)</td></tr>
+            <tr><td>DB_USER / DB_PASSWORD</td><td>App DB credentials (auto-generated by installer)</td></tr>
+            <tr><td>FLASK_SECRET_KEY</td><td>Session signing key (auto-generated by installer)</td></tr>
+            <tr><td>EMAIL_USER / EMAIL_PASSWORD</td><td>SMTP credentials for verification emails</td></tr>
+            <tr><td>PUB_URL</td><td>Publicly reachable hostname of the server</td></tr>
+            <tr><td>LIVEKIT_KEY / LIVEKIT_SECRET</td><td>LiveKit API credentials for VoIP</td></tr>
+            <tr><td>LIVEKIT_URL</td><td>WebSocket URL of your LiveKit instance</td></tr>
+            <tr><td>IGNORE_EMAIL_VERIF</td><td>Set <code>true</code> to skip email verification (dev only)</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="doc-item">
+        <button class="doc-item__toggle" onclick="toggleDoc(this)">
+          Troubleshooting
+          <span class="doc-item__toggle-icon">▾</span>
+        </button>
+        <div class="doc-item__body">
+          <h4>Client can't connect to the server</h4>
+          <p>Check that both <code>main.py</code> (port 5123) and <code>app/websockets/main.py</code> (port 8765) are running. Also verify <code>PUB_URL</code> in <code>.env</code> matches your server's hostname.</p>
+          <h4><code>mariadb.OperationalError</code> on startup</h4>
+          <p>MariaDB is not running or the credentials in <code>.env</code> don't match. Re-run <code>install_update_server.py</code> with root access enabled (<code>ROOT_ACCESS=true</code>).</p>
+          <h4>Emails not being sent</h4>
+          <p>Set <code>IGNORE_EMAIL_VERIF=true</code> to bypass email verification during development. For production, use an app-specific password with your email provider.</p>
+          <h4>VoIP calls not connecting</h4>
+          <p>VoIP is a beta feature. Ensure your LiveKit server is reachable at the URL set in <code>LIVEKIT_URL</code> and that <code>LIVEKIT_KEY</code> / <code>LIVEKIT_SECRET</code> are correct.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+
+<!-- ABOUT -->
+<section class="section section--alt" id="about">
+  <div class="container">
+
+    <div class="section-label">About</div>
+    <h2 class="section-title">The project</h2>
+    <p class="section-sub">
+      ChatCLI is an independent open-source project — a fully self-hosted, cross-platform messaging client built from scratch.
+    </p>
+
+    <div class="team-grid">
+      <div class="team-card">
+        <div class="team-avatar">FM</div>
+        <div class="team-name">FrostMantis</div>
+        <div class="team-role">Developer · Designer</div>
+        <div class="team-links">
+          <a href="https://github.com/FrostMantis" class="team-link" target="_blank">GitHub</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="project-context">
+      <div class="context-item">
+        <div class="context-item__label">Repository</div>
+        <div class="context-item__value"><a href="https://github.com/FrostMantis/ChatCLI" target="_blank">github.com/FrostMantis/ChatCLI</a></div>
+      </div>
+      <div class="context-item">
+        <div class="context-item__label">License</div>
+        <div class="context-item__value">GNU General Public License v3.0</div>
+      </div>
+      <div class="context-item">
+        <div class="context-item__label">Years</div>
+        <div class="context-item__value">2024 – 2026</div>
+      </div>
+      <div class="context-item">
+        <div class="context-item__label">Hosted at</div>
+        <div class="context-item__value">chat.puam.be</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+
+<!-- FOOTER -->
+<footer class="footer">
+  <div class="container">
+
+    <div class="footer__inner">
+      <div class="footer__brand">
+        <div class="footer__brand-name">ChatCLI</div>
+        <p class="footer__brand-sub">
+          A self-hosted, cross-platform desktop chat app. Open source under GPLv3.
+        </p>
+      </div>
+
+      <div class="footer__links-group">
+        <div class="footer__links-title">Navigation</div>
+        <ul class="footer__links">
+          <li><a href="#features">Features</a></li>
+          <li><a href="#install">Installation</a></li>
+          <li><a href="#docs">Documentation</a></li>
+          <li><a href="#about">About</a></li>
+        </ul>
+      </div>
+
+      <div class="footer__links-group">
+        <div class="footer__links-title">Resources</div>
+        <ul class="footer__links">
+          <li><a href="https://github.com/FrostMantis/ChatCLI" target="_blank">GitHub repository</a></li>
+          <li><a href="https://github.com/FrostMantis/ChatCLI/releases" target="_blank">Releases</a></li>
+          <li><a href="https://github.com/FrostMantis/ChatCLI/issues" target="_blank">Report a bug</a></li>
+          <li><a href="https://github.com/FrostMantis/ChatCLI/wiki" target="_blank">Wiki</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer__bottom">
+      <span class="footer__copy">© 2024–2026 FrostMantis — GPLv3</span>
+      <span class="footer__right">chat.puam.be</span>
+    </div>
+
+  </div>
+</footer>
+
+
+<script>
+function toggleDoc(btn) {
+  const body = btn.nextElementSibling;
+  const isOpen = body.classList.contains('open');
+  document.querySelectorAll('.doc-item__body').forEach(b => b.classList.remove('open'));
+  document.querySelectorAll('.doc-item__toggle').forEach(b => b.classList.remove('active'));
+  if (!isOpen) {
+    body.classList.add('open');
+    btn.classList.add('active');
+  }
+}
+
+function switchTab(btn, tabId) {
+  btn.closest('.container').querySelectorAll('.install-tab').forEach(t => t.classList.remove('active'));
+  btn.closest('.container').querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(tabId).classList.add('active');
+}
+
+function copyCode(btn) {
+  const pre = btn.closest('.code-block').querySelector('pre');
+  navigator.clipboard.writeText(pre.innerText).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = '✓ Copied';
+    setTimeout(() => { btn.textContent = orig; }, 1800);
+  });
+}
+
+const sections = document.querySelectorAll('section[id]');
+const navLinks = document.querySelectorAll('.navbar__nav a');
+
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const id = entry.target.getAttribute('id');
+      navLinks.forEach(link => {
+        link.style.color = link.getAttribute('href') === '#' + id ? 'var(--accent)' : '';
+      });
+    }
+  });
+}, { threshold: 0.4 });
+
+sections.forEach(s => observer.observe(s));
+
+const cards = document.querySelectorAll('.feature-card, .install-step, .team-card');
+const revealObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.style.opacity = '1';
+      entry.target.style.transform = 'translateY(0)';
+    }
+  });
+}, { threshold: 0.1 });
+
+cards.forEach(card => {
+  card.style.opacity = '0';
+  card.style.transform = 'translateY(16px)';
+  card.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+  revealObserver.observe(card);
+});
+</script>
+
+</body>
+</html>

@@ -19,7 +19,7 @@ module.exports = {
       name: '@electron-forge/maker-deb',
       config: {
         options: {
-          maintainer: "SciTechMC",
+          maintainer: "FrostMantis",
           homepage: "http://chat.puam.be"
         }
       },

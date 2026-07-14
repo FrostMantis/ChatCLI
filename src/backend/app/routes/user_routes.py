@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, render_template
 from app.services.user_services import *
 from app.extensions import limiter
 import app.errors as errors
@@ -63,14 +63,16 @@ def route_reset_password_request():
 @user.route("/reset-password", methods=["GET", "POST"])
 @limiter.limit("5 per minute")
 def route_reset_password():
-    if request.method == "POST":
-        data = request.get_json(silent=True)
-        if not data:
-            raise errors.BadRequest("Invalid JSON format.")
-    else:
-        data = request.args.to_dict()
-        if not data:
+    if request.method == "GET":
+        token = request.args.get("token")
+        username = request.args.get("username")
+        if not token or not username:
             raise errors.BadRequest("Missing query parameters.")
+        return render_template("reset_password.html", token=token, username=username)
+
+    data = request.get_json(silent=True) or request.form.to_dict()
+    if not data:
+        raise errors.BadRequest("Invalid request format.")
     result = reset_password(data)
     return jsonify(result)
 

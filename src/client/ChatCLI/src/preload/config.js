@@ -1,6 +1,6 @@
-const HOST_BACKEND = '172.27.27.29';
-const HOST_WEBSOCKET = '172.27.27.29';
-const HOST_LIVEKIT = '172.27.27.16';
+const HOST_BACKEND = 'chat.puam.be';
+const HOST_WEBSOCKET = 'ws.chat.puam.be';
+const HOST_LIVEKIT = '127.0.0.1';
 
 const PORT_API     = 5123;
 const PORT_WS      = 8765;

@@ -10,6 +10,19 @@ import handler
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
+
+async def _reject_call_ws(ws: "WebSocket", call_id: str, code: str, **extra) -> None:
+    """Send a call_ws_error and close the socket, tolerating an already-closed ws."""
+    try:
+        await ws.send_json({"type": "call_ws_error", "call_id": call_id, "code": code, **extra})
+    except Exception:
+        pass
+    try:
+        if ws.application_state != WebSocketState.DISCONNECTED:
+            await ws.close(code=1008)
+    except RuntimeError:
+        logger.warning("Attempted to close an already closed WebSocket for call_id: %s", call_id)
+
 # Logging level priority (low → high)
 # NOTSET   = 0   → disables filtering
 # DEBUG    = 10  → detailed debug info
@@ -72,7 +85,7 @@ async def websocket_endpoint(ws: WebSocket):
     try:
         while True:
             msg = await ws.receive_json()
-            await handler.handle_message(username, ws, msg)
+            await handler.handle_message(ws, msg)
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected for user: %s", username)
     except Exception as e:
@@ -121,37 +134,16 @@ async def call_ws(ws: WebSocket, call_id: str):
 
     sess = services.call_sessions.get(call_id)
     if not sess:
-        try:
-            await ws.send_json({
-                "type": "call_ws_error",
-                "call_id": call_id,
-                "code": "CALL_NOT_FOUND",
-            })
-        except Exception:
-            pass
-        try:
-            if ws.application_state != WebSocketState.DISCONNECTED:
-                await ws.close(code=1008)
-        except RuntimeError:
-            logger.warning("Attempted to close an already closed WebSocket for call_id: %s", call_id)
+        await _reject_call_ws(ws, call_id, "CALL_NOT_FOUND")
+        return
+
+    if username not in sess.get("participants", set()):
+        await _reject_call_ws(ws, call_id, "ACCESS_DENIED")
         return
 
     state = sess.get("state")
     if state not in ("ringing", "active"):
-        try:
-            await ws.send_json({
-                "type": "call_ws_error",
-                "call_id": call_id,
-                "code": "CALL_NOT_ACTIVE",
-                "state": state,
-            })
-        except Exception:
-            pass
-        try:
-            if ws.application_state != WebSocketState.DISCONNECTED:
-                await ws.close(code=1008)
-        except RuntimeError:
-            logger.warning("Attempted to close an already closed WebSocket for call_id: %s", call_id)
+        await _reject_call_ws(ws, call_id, "CALL_NOT_ACTIVE", state=state)
         return
 
     call_rooms.setdefault(call_id, set()).add(ws)

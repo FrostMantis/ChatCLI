@@ -164,7 +164,9 @@ def get_messages(data: dict) -> dict:
             "userID": r["userID"],
             "username": id_to_username.get(r["userID"], "unknown"),
             "message": r["message"],
-            "timestamp": r["timestamp"].isoformat()
+            "timestamp": r["timestamp"].isoformat(),
+            "edited_at": r["edited_at"].isoformat() if r["edited_at"] else None,
+            "deleted_at": r["deleted_at"].isoformat() if r["deleted_at"] else None
         }
         for r in reversed(rows)
     ]
@@ -282,6 +284,15 @@ def add_participant(data: dict) -> dict:
     if not username:
         raise Unauthorized("Invalid session token.")
 
+    parts_self = fetch_records(
+    table="participants",
+    where_clause="chatID = %s AND userID = (SELECT userID FROM users WHERE LOWER(username) = %s)",
+    params=(chat_id, username.lower()),
+    fetch_all=True
+    )
+    if not parts_self:
+        raise NotFound("Chat not found or access denied.")
+
     grp = fetch_records(
         table="chats",
         where_clause="chatID=%s AND type='group'",
@@ -333,6 +344,15 @@ def remove_participant(data: dict) -> dict:
     username = authenticate_token(session_token)
     if not username:
         raise Unauthorized("Invalid session token.")
+
+    parts_self = fetch_records(
+    table="participants",
+    where_clause="chatID = %s AND userID = (SELECT userID FROM users WHERE LOWER(username) = %s)",
+    params=(chat_id, username.lower()),
+    fetch_all=True
+    )
+    if not parts_self:
+        raise NotFound("Chat not found or access denied.")
 
     grp = fetch_records(
         table="chats",

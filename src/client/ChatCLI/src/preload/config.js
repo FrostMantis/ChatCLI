@@ -1,10 +1,14 @@
-const API_HOST = 'chat.puam.be';
-const WS_HOST = 'ws.chat.puam.be';
-const API_PORT = 443;
-const WS_PORT = 443;
+const HOST_BACKEND = '172.27.27.29';
+const HOST_WEBSOCKET = '172.27.27.29';
+const HOST_LIVEKIT = '172.27.27.16';
+
+const PORT_API     = 5123;
+const PORT_WS      = 8765;
+const PORT_LIVEKIT = 7880;
 
 module.exports = {
-  BASE_URL: `https://${API_HOST}:${API_PORT}`,
-  WS_URL: `wss://${WS_HOST}:${WS_PORT}/ws`,
-  CALL_URL: `wss://${WS_HOST}:${WS_PORT}/call/`,
+  BASE_URL: `http://${HOST_BACKEND}:${PORT_API}`,
+  WS_URL:   `ws://${HOST_WEBSOCKET}:${PORT_WS}/ws`,
+  CALL_URL: `ws://${HOST_LIVEKIT}:${PORT_LIVEKIT}`,
+  LIVEKIT_IP_URL: `http://${HOST_LIVEKIT}:${PORT_LIVEKIT}`
 };

@@ -133,15 +133,14 @@ export function connectWS() {
       return;
     }
 
+    if (msg === null) {
+        return; 
+    }
+
     // Handle the "online_users" message type
     if (msg.type === 'online_users') {
       window.dispatchEvent(new CustomEvent('chat:online-users', { detail: msg.users }));
       return;
-    }
-
-    if (msg === null) {
-        console.warn('[CHAT-WS] Received unexpected null payload.');
-        return; 
     }
 
     // Chat messages
@@ -149,6 +148,16 @@ export function connectWS() {
       if (store.seenMessageIDs.has(msg.messageID)) return;
       store.seenMessageIDs.add(msg.messageID);
       window.dispatchEvent(new CustomEvent('chat:new-message', { detail: msg }));
+      return;
+    }
+
+    if (msg.type === 'edited_message') {
+      window.dispatchEvent(new CustomEvent('chat:edited-message', { detail: msg }));
+      return;
+    }
+
+    if (msg.type === 'deleted_message') {
+      window.dispatchEvent(new CustomEvent('chat:deleted-message', { detail: msg }));
       return;
     }
 
@@ -165,7 +174,6 @@ export function connectWS() {
     }
 
     if (msg.type === 'chat_created') {
-      console.log("chat_created called");
       window.dispatchEvent(new CustomEvent('chat:chat_created', { detail: msg }));
       return;
     }

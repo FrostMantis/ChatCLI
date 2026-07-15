@@ -164,11 +164,23 @@ export async function selectChat(chatID) {
       body: JSON.stringify({ session_token: store.token, chatID: targetId })
     });
     if (Array.isArray(history?.messages)) {
-      history.messages.forEach(appendMessage);
+      history.messages.forEach(msg => appendMessage({
+        username: msg.username,
+        message: msg.message,
+        timestamp: msg.timestamp,
+        messageID: msg.messageID,
+        edited_at: msg.edited_at,
+        deleted_at: msg.deleted_at
+      }));
     }
   } catch (err) {
     console.error('history fetch error:', err);
     showToast('Failed to load message history: ' + (err.message || 'Unknown error'), 'error');
+  }
+
+  // Cancel edit mode when switching chats
+  if (store.editingMessageID) {
+    cancelEditingMessage();
   }
 
   // Mark active in list
@@ -182,8 +194,7 @@ export async function selectChat(chatID) {
   }));
 }
 
-
-export function appendMessage({ username: msgUser, message, timestamp }) {
+export function appendMessage({ username: msgUser, message, timestamp, messageID, edited_at, deleted_at }) {
   const { messagesEl } = store.refs;
 
   const ts = new Date(timestamp);
@@ -201,8 +212,8 @@ export function appendMessage({ username: msgUser, message, timestamp }) {
   wrap.className = 'message ' + (startNewCluster ? 'message--cluster-start' : 'message--cluster-continue');
   wrap.dataset.username = msgUser;
   wrap.dataset.ts = String(tsMs);
+  if (messageID) wrap.dataset.messageId = String(messageID);
 
-  // Left rail: avatar for cluster start; for continuations add a hover-time
   const leftRail = document.createElement('div');
   leftRail.className = 'message-rail' + (startNewCluster ? '' : ' spacer');
 
@@ -223,14 +234,12 @@ export function appendMessage({ username: msgUser, message, timestamp }) {
     }
     leftRail.appendChild(avatar);
   } else {
-    // add hover time placeholder for continuations
     const hoverTime = document.createElement('span');
     hoverTime.className = 'hover-time';
-    hoverTime.textContent = timeHHmm; // e.g. "14:07"
+    hoverTime.textContent = timeHHmm;
     leftRail.appendChild(hoverTime);
   }
 
-  // Right column
   const right = document.createElement('div');
   right.className = 'message-body';
 
@@ -253,15 +262,101 @@ export function appendMessage({ username: msgUser, message, timestamp }) {
     right.appendChild(header);
   }
 
+  const isDeleted = deleted_at !== null && deleted_at !== undefined;
+  
   const bubble = document.createElement('div');
   bubble.className = 'message-bubble';
-  bubble.textContent = message;
+  if (isDeleted) {
+    bubble.textContent = '(message deleted)';
+    bubble.style.fontStyle = 'italic';
+    bubble.style.opacity = '0.6';
+  } else {
+    bubble.textContent = message;
+  }
   right.appendChild(bubble);
+
+  if (edited_at !== null && edited_at !== undefined && deleted_at == null) {
+    const editIndicator = document.createElement('span');
+    editIndicator.className = 'edit-indicator';
+    editIndicator.textContent = '(edited)';
+    editIndicator.style.fontSize = '0.85em';
+    editIndicator.style.opacity = '0.7';
+    editIndicator.style.marginLeft = '0.5em';
+    bubble.appendChild(editIndicator);
+  }
+
+  // Discord Style Actions
+  if (!isDeleted && msgUser.toLowerCase() === (store.username || '').toLowerCase()) {
+    const actions = document.createElement('div');
+    actions.className = 'message-actions';
+
+    const editBtn = document.createElement('button');
+    editBtn.textContent = '✎';
+    editBtn.className = 'message-action-btn message-action-edit';
+    editBtn.title = 'Edit message';
+    // Initial click handler
+    editBtn.onclick = () => startEditingMessage(messageID, bubble.firstChild.textContent);
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.textContent = '✕';
+    deleteBtn.className = 'message-action-btn message-action-delete';
+    deleteBtn.title = 'Delete message';
+    deleteBtn.onclick = () => confirmDeleteMessage(messageID);
+
+    actions.append(editBtn, deleteBtn);
+    wrap.appendChild(actions); 
+  }
 
   wrap.append(leftRail, right);
   messagesEl.appendChild(wrap);
-
   messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+// Edit/Delete message handlers
+function startEditingMessage(messageID, currentText) {
+  const { messageInput } = store.refs;
+  store.editingMessageID = messageID;
+  messageInput.value = currentText;
+  messageInput.focus();
+  messageInput.placeholder = 'Editing message... (press Escape to cancel)';
+  
+  messageInput.style.backgroundColor = 'var(--bg-tertiary)';
+  messageInput.style.outline = '1px solid var(--accent-color)';
+  
+  updateSendButtonState();
+}
+
+function cancelEditingMessage() {
+  const { messageInput } = store.refs;
+  store.editingMessageID = null;
+  messageInput.value = '';
+  messageInput.placeholder = 'Type a message...';
+  
+  messageInput.style.backgroundColor = '';
+  messageInput.style.outline = '';
+  
+  updateSendButtonState();
+}
+
+function confirmDeleteMessage(messageID) {
+  showConfirmationModal(
+    'Are you sure you want to delete this message?',
+    'Delete Message',
+    () => deleteMessage(messageID)
+  );
+}
+
+async function deleteMessage(messageID) {
+  try {
+    WSSend({
+      type: 'delete_msg',
+      chatID: store.currentChatID,
+      messageID
+    });
+  } catch (err) {
+    console.error('Delete message error:', err);
+    showToast('Failed to delete message', 'error');
+  }
 }
 
 export async function sendMessage() {
@@ -275,7 +370,20 @@ export async function sendMessage() {
   const len = text.length;
 
   if (len <= MAX_MESSAGE_LEN) {
-    WSSend({ type: 'post_msg', chatID: store.currentChatID, text });
+    if (store.editingMessageID) {
+      // Logic for saving an edited message
+      WSSend({
+        type: 'edit_msg',
+        chatID: store.currentChatID,
+        messageID: store.editingMessageID,
+        text
+      });
+      cancelEditingMessage();
+    } else {
+      // Normal message post
+      WSSend({ type: 'post_msg', chatID: store.currentChatID, text });
+    }
+    
     messageInput.value = '';
     messageInput.style.height = 'auto';
     updateSendButtonState();
@@ -283,9 +391,14 @@ export async function sendMessage() {
     return;
   }
 
+  // Cancel edit if user tries to split a message into chunks
+  if (store.editingMessageID) {
+    showToast('Cannot split edited message into multiple parts', 'error');
+    return;
+  }
+
   if (len > HARD_MAX) {
     const over = len - HARD_MAX;
-
     const overflowRaw = text.slice(HARD_MAX).trimStart();
     let overflowSnippet = '';
     if (overflowRaw.length > 0) {
@@ -337,18 +450,76 @@ export async function sendMessage() {
   );
 }
 
-// WS event handlers (hooked by main.js)
+// Handle Escape key to cancel edit mode
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && store.editingMessageID) {
+    cancelEditingMessage();
+  }
+});
+
 export function onWSNewMessage({ detail: msg }) {
   if (msg.chatID === store.currentChatID) {
     appendMessage({
       username: msg.username,
       message: msg.message,
-      timestamp: msg.timestamp
+      timestamp: msg.timestamp,
+      messageID: msg.messageID,
+      edited_at: msg.edited_at,
+      deleted_at: msg.deleted_at
     });
   } else {
     const preview = store.refs.chatListEl
       .querySelector(`.chat-item[data-chat-id="${msg.chatID}"] .chat-preview`);
     if (preview) preview.textContent = msg.message.slice(0, 50);
+  }
+}
+
+export function onWSEditedMessage({ detail: msg }) {
+  // Find message element by messageID
+  const msgEl = document.querySelector(`[data-message-id="${msg.messageID}"]`);
+  
+  if (msgEl) {
+    const bubble = msgEl.querySelector('.message-bubble');
+    if (bubble) {
+      bubble.textContent = msg.message;
+      
+      const editIndicator = document.createElement('span');
+      editIndicator.className = 'edit-indicator';
+      editIndicator.textContent = '(edited)';
+      editIndicator.style.fontSize = '0.85em';
+      editIndicator.style.opacity = '0.7';
+      editIndicator.style.marginLeft = '0.5em';
+      bubble.appendChild(editIndicator);
+    }
+
+    const editBtn = msgEl.querySelector('.message-action-edit');
+    if (editBtn) {
+      editBtn.onclick = () => startEditingMessage(msg.messageID, msg.message);
+    }
+  }
+
+  if (msg.chatID === store.currentChatID) {
+    showToast('Message updated', 'info');
+  }
+}
+
+export function onWSDeletedMessage({ detail: msg }) {
+  // Find message element by messageID
+  const msgEl = document.querySelector(`[data-message-id="${msg.messageID}"]`);
+  if (msgEl) {
+    // Update the message text and style to show deletion
+    const bubble = msgEl.querySelector('.message-bubble');
+    if (bubble) {
+      bubble.textContent = '(message deleted)';
+      bubble.style.fontStyle = 'italic';
+      bubble.style.opacity = '0.6';
+    }
+    // Remove action buttons
+    const actions = msgEl.querySelector('.message-actions');
+    if (actions) actions.remove();
+  }
+  if (msg.chatID === store.currentChatID) {
+    showToast('Message deleted', 'info');
   }
 }
 

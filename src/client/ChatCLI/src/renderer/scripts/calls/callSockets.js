@@ -20,9 +20,9 @@ export function sendCallInviteViaGlobal(chatID) {
 
 export function sendCallAcceptViaGlobal(chatID) {
   if (!chatID) return;
-  const callId = store.call.currentCallId;
+  const callId = store.call.incomingCallId || store.call.currentCallId;
   if (!callId) {
-    console.warn('sendCallAcceptViaGlobal: no currentCallId in store.call');
+    console.warn('sendCallAcceptViaGlobal: no call_id available');
     return;
   }
   WSSend({

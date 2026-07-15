@@ -15,6 +15,7 @@ export const store = {
   archivedChatsData: [],
   currentMembers: [],
   peerUsername: null,
+  editingMessageID: null,
 
   typingUsers: new Set(),
   typingTimeouts: new Map(),

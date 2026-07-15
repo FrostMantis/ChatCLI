@@ -9,7 +9,7 @@ from flask import current_app
 import os
 
 from app.errors import BadRequest, Unauthorized, Forbidden, NotFound, Conflict, APIError
-from app.database.db_helper import fetch_records, insert_record, update_records
+from app.database.db_helper import fetch_records, insert_record, update_records, get_db
 from app.services.base_services import authenticate_token
 from app.services.mail_services import (
     send_verification_email,
@@ -19,6 +19,30 @@ from app.services.mail_services import (
 
 # Character set for tokens
 alphabet = string.ascii_letters + string.digits
+
+
+def _consume_invite_code(code: str) -> bool:
+    """
+    Atomically consume one use of an invite code.
+    Returns True only if a valid, non-revoked, non-expired, non-exhausted code was consumed.
+    The single guarded UPDATE prevents two registrations from burning the last use at once.
+    """
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        UPDATE invite_codes
+           SET uses = uses + 1
+         WHERE code = %s
+           AND revoked = FALSE
+           AND uses < max_uses
+           AND (expires_at IS NULL OR expires_at > %s)
+        """,
+        (code, datetime.now(timezone.utc)),
+    )
+    if conn.autocommit:
+        conn.commit()
+    return cur.rowcount == 1
 
 
 def register(data: dict) -> dict:
@@ -50,52 +74,36 @@ def register(data: dict) -> dict:
             "Password must be ≥8 chars, include upper, lower, digit & special."
         )
 
-    try:
-        # hash password
-        hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
+    invite_code = (data.get("invite_code") or "").strip()
+    if not invite_code:
+        raise BadRequest("An invite code is required to register.")
 
-        # check existing user
-        users = fetch_records(
+    try:
+        # hash password (store as utf-8 string for DB portability)
+        hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+        existing = fetch_records(
             table="users",
             where_clause="LOWER(username) = LOWER(%s)",
             params=(username,),
             fetch_all=True
         )
+        if existing:
+            raise Conflict(f"User '{username}' already exists.")
 
-        if users:
-            user = users[0]
-            if user["email_verified"]:
-                raise Conflict(f"User '{username}' already exists.")
-            userID = user["userID"]
-            # update unverified user
-            update_records(
-                table="users",
-                data={
-                    "password": hashed,
-                    "email": email,
-                    "created_at": datetime.now(timezone.utc)
-                },
-                where_clause="userID = %s",
-                where_params=(userID,)
-            )
-            # revoke any recent tokens
-            update_records(
-                table="email_tokens",
-                data={"revoked": True},
-                where_clause="userID = %s AND expires_at > %s",
-                where_params=(userID, datetime.now(timezone.utc))
-            )
-        else:
-            # insert new user
-            userID = insert_record(
-                "users",
-                {
-                    "username": username,
-                    "password": hashed,
-                    "email": email,
-                    "email_verified": False
-                }
-            )
+        if not _consume_invite_code(invite_code):
+            raise BadRequest("Invalid or exhausted invite code.")
+
+        userID = insert_record(
+            "users",
+            {
+                "username": username,
+                "password": hashed,
+                "email": email,
+                "email_verified": False,
+                "invite_code": invite_code
+            }
+        )
 
         # create verification token
         email_token = f"{random.randint(100000, 999999):06d}"
@@ -109,7 +117,7 @@ def register(data: dict) -> dict:
                 "revoked":     False
             }
         )
-    except Conflict:
+    except APIError:
         raise
     except Exception as e:
         current_app.logger.error("Error during user registration", exc_info=e)
@@ -248,8 +256,22 @@ def login(data: dict) -> dict:
         if not users:
             raise BadRequest("Username or password is incorrect.")
         user = users[0]
-        if not bcrypt.checkpw(password.encode("utf-8"), user["password"].encode("utf-8")):
-            raise BadRequest("Username or password is incorrect.")
+        # Normalize stored password to bytes for bcrypt
+        stored = user.get("password")
+        if isinstance(stored, (bytes, bytearray, memoryview)):
+            stored_bytes = bytes(stored)
+        elif isinstance(stored, str):
+            stored_bytes = stored.encode("utf-8")
+        else:
+            current_app.logger.error("Unexpected password type for user %s: %s", username, type(stored))
+            raise APIError()
+
+        try:
+            if not bcrypt.checkpw(password.encode("utf-8"), stored_bytes):
+                raise BadRequest("Username or password is incorrect.")
+        except ValueError as e:
+            current_app.logger.error("Invalid password hash for user %s: %r", username, stored, exc_info=e)
+            raise APIError()
 
         now = datetime.now(timezone.utc)
         # generate access token
@@ -480,8 +502,8 @@ def reset_password(data: dict) -> dict:
         if not users:
             raise BadRequest("Username does not match.")
 
-        # update password & revoke token
-        new_hashed = bcrypt.hashpw(new_pass.encode("utf-8"), bcrypt.gensalt())
+        # update password & revoke token (store as utf-8 string)
+        new_hashed = bcrypt.hashpw(new_pass.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
         update_records(
             table="users",
             data={"password": new_hashed},
@@ -712,8 +734,22 @@ def change_password(data: dict) -> dict:
         )
         if not user:
             raise NotFound("User not found.")
-        if not bcrypt.checkpw(old_password.encode("utf-8"), user["password"].encode("utf-8")):
-            raise Forbidden("Incorrect current password.")
+        # Normalize stored password to bytes for bcrypt
+        stored = user.get("password")
+        if isinstance(stored, (bytes, bytearray, memoryview)):
+            stored_bytes = bytes(stored)
+        elif isinstance(stored, str):
+            stored_bytes = stored.encode("utf-8")
+        else:
+            current_app.logger.error("Unexpected password type for user %s: %s", username, type(stored))
+            raise APIError()
+
+        try:
+            if not bcrypt.checkpw(old_password.encode("utf-8"), stored_bytes):
+                raise Forbidden("Incorrect current password.")
+        except ValueError as e:
+            current_app.logger.error("Invalid password hash for user %s during change_password: %r", username, stored, exc_info=e)
+            raise APIError()
         if (
             len(new_password) < 8 or
             not any(ch.isupper() for ch in new_password) or
@@ -723,7 +759,7 @@ def change_password(data: dict) -> dict:
         ):
             raise BadRequest("Password must be ≥8 chars, include upper, lower, digit & special.")
 
-        hashed = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt())
+        hashed = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
         update_records(
             table="users",
             data={"password": hashed},

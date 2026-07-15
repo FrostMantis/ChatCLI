@@ -7,7 +7,7 @@ import { initChatSearch, reapplyChatSearch } from './chats/search.js';
 import { apiRequest } from './core/api.js';
 import { loadChats, onWSChatCreated } from './chats/chatList.js';
 import { handleArchiveChat, archiveChat } from './chats/archive.js';
-import { selectChat, sendMessage, updateSendButtonState, onWSNewMessage, onWSTyping, onWSUserStatus, onWSOnlineUsers } from './chats/chatSession.js';
+import { selectChat, sendMessage, updateSendButtonState, onWSNewMessage, onWSTyping, onWSUserStatus, onWSOnlineUsers, onWSEditedMessage, onWSDeletedMessage } from './chats/chatSession.js';
 import { openGroupEditor, initGroupEditor } from './chats/groupEditor.js';
 import { showToast } from './ui/toasts.js';
 import { sendCallInviteViaGlobal, sendCallAcceptViaGlobal, sendCallDeclineViaGlobal, sendCallEndViaGlobal } from './calls/callSockets.js';
@@ -18,6 +18,8 @@ import { playRingback, stopRingback, playRingtone, stopRingtone, initMedia } fro
 
 // --- events from ws
 window.addEventListener('chat:new-message', onWSNewMessage);
+window.addEventListener('chat:edited-message', onWSEditedMessage);
+window.addEventListener('chat:deleted-message', onWSDeletedMessage);
 window.addEventListener('chat:user-typing', onWSTyping);
 window.addEventListener('chat:user-status', onWSUserStatus);
 window.addEventListener('chat:chat_created', onWSChatCreated);
@@ -407,7 +409,22 @@ document.addEventListener('DOMContentLoaded', async () => {
                     stopRingback();
                   }
 
-                  await joinCall({ callId: call_id, isInitiator });
+                  // Get LiveKit credentials from store (set by call_invite or call_accepted)
+                  const lk_url = store.call.outgoingUrl || store.call.incomingUrl;
+                  const lk_token = store.call.outgoingToken || store.call.incomingToken;
+
+                  if (!lk_url || !lk_token) {
+                      console.error('[CALL] Missing LiveKit URL or token:', { lk_url, lk_token });
+                      showToast('Call setup incomplete', 'error');
+                      break;
+                  }
+
+                  try {
+                      await joinCall(lk_url, lk_token);
+                  } catch (error) {
+                      console.error('[CALL] Failed to join at active state:', error);
+                      showToast('Failed to join call', 'error');
+                  }
                   updateCallButton();
                   break;
               }
@@ -418,6 +435,78 @@ document.addEventListener('DOMContentLoaded', async () => {
                   break;
               }
 
+              break;
+          }
+
+          case 'call_invite': {
+              // Incoming call invitation from another user
+              const { chatID, call_id, caller, lk_token, lk_url } = msg;
+              
+              // Check if this is the caller
+              const isCallerSelf = self === (caller || '').toLowerCase();
+              
+              if (isCallerSelf) {
+                  // Caller - automatically connect to the call
+                  store.call.currentCallId = call_id;
+                  store.call.outgoingToken = lk_token;
+                  store.call.outgoingUrl = lk_url;
+                  store.callState = 'outgoing';
+                  store.callActiveChatID = chatID;
+                  playRingback();
+                  
+                  // Caller automatically joins the room
+                  try {
+                      await joinCall(lk_url, lk_token);
+                  } catch (error) {
+                      console.error('[CALL] Caller failed to join:', error);
+                      showToast('Failed to start call', 'error');
+                  }
+                  // Don't process further for caller
+                  updateCallButton();
+                  break;
+              }
+              
+              // Other recipients - show incoming call modal
+              store.call.incomingToken = lk_token;
+              store.call.incomingUrl = lk_url;
+              store.call.incomingChatID = chatID;
+              store.call.incomingCaller = caller;
+              store.call.incomingCallId = call_id;
+              store.callIncoming = { chatID, from: caller, call_id };
+              store.callState = 'incoming';
+              store.callActiveChatID = chatID;
+              playRingtone();
+              showIncomingCallModal(caller, 'is calling you…');
+              updateCallButton();
+              
+              // Dispatch event only for non-callers
+              window.dispatchEvent(new CustomEvent('call:incoming', {
+                detail: { chatID, from: caller, call_id, lk_token, lk_url }
+              }));
+              break;
+          }
+
+          case 'call_accepted': {
+              // Call has been accepted by another user
+              const { chatID, call_id, accepted_by, lk_token, lk_url } = msg;
+              
+              // Update call state
+              store.call.currentCallId = call_id;
+              store.callState = 'in-call';
+              store.callActiveChatID = chatID;
+              
+              stopRingback();
+              hideIncomingCallModal();
+              
+              // Join the call
+              try {
+                  await joinCall(lk_url, lk_token);
+              } catch (error) {
+                  console.error('[CALL] Failed to join after accept:', error);
+                  showToast('Failed to connect to call', 'error');
+              }
+              
+              updateCallButton();
               break;
           }
 
@@ -538,7 +627,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           const chatID = result.chatID;
           showToast('Private chat created!', 'info');
           try {
-            WSSend({ type : 'chat_created', chatID : chatID, 'creator': store.username });
+            WSSend({ type : 'chat_created', chatID : chatID });
           } catch (err) {showToast(err.message, 'error')}
           hideModal(createChatModal);
           newChatInput.value = '';
@@ -562,7 +651,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           const chatID = result.chatID;
           showToast('Group created!', 'info');
           try {
-            WSSend({ type: 'chat_created', chatID : chatID, 'creator': store.username });
+            WSSend({ type: 'chat_created', chatID : chatID });
           } catch (err) {showToast(err.message + "send chat_created", 'error')}
           hideModal(createChatModal);
           newGroupNameInput.value = '';
@@ -666,3 +755,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     );
   });
 });
+win.webContents.executeJavaScript(`
+  (function() {
+    if (window.LiveKit || window.LiveKitClient) return;
+    
+    // Create a script tag that hides the CommonJS environment
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/livekit-client@2.17.2/dist/livekit-client.umd.min.js';
+    
+    // This is the key: Force UMD to use the window global
+    const wrapper = "var module = undefined; var exports = undefined;";
+    
+    script.onload = () => {
+      console.log('[PRELOAD] LiveKit loaded. Available as:', 
+        window.LiveKit ? 'LiveKit' : (window.LiveKitClient ? 'LiveKitClient' : 'None'));
+    };
+    document.head.appendChild(script);
+  })();
+`);

@@ -46,6 +46,11 @@ FLASK_SECRET_KEY={flask_key}
 
 #Public URL of the server
 PUB_URL=127.0.01
+
+#LiveKIT
+LIVEKIT_KEY = "devkey"
+LIVEKIT_SECRET = "secret"
+LIVEKIT_URL = "ws://127.0.0.1:7880"
 """
 
 def ensure_env(env=".env"):
@@ -129,7 +134,8 @@ def create_database_and_tables():
                       created_at     DATETIME     DEFAULT CURRENT_TIMESTAMP,
                       email_verified BOOLEAN      DEFAULT FALSE,
                       disabled       BOOLEAN      DEFAULT FALSE,
-                      deleted        BOOLEAN      DEFAULT FALSE
+                      deleted        BOOLEAN      DEFAULT FALSE,
+                      invite_code    VARCHAR(64)  DEFAULT NULL
                     ) CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
                     """,
 
@@ -221,7 +227,22 @@ def create_database_and_tables():
                       userID    INT NOT NULL,
                       message   TEXT,
                       timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                      edited_at DATETIME,
+                      deleted_at DATETIME,
                       INDEX idx_msg_chat_ts (chatID, timestamp)
+                    ) CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+                    """,
+
+                    # invite_codes
+                    """
+                    CREATE TABLE IF NOT EXISTS invite_codes (
+                      codeID     INT AUTO_INCREMENT PRIMARY KEY,
+                      code       VARCHAR(64) NOT NULL UNIQUE,
+                      created_at DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                      expires_at DATETIME    DEFAULT NULL,  # NULL = never expires
+                      max_uses   INT         NOT NULL DEFAULT 1,
+                      uses       INT         NOT NULL DEFAULT 0,
+                      revoked    BOOLEAN     NOT NULL DEFAULT FALSE
                     ) CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
                     """
                 ]

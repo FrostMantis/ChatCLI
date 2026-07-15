@@ -429,11 +429,12 @@ if (registerForm) {
     registerSubmitBtn.textContent = 'Registering…';
 
     try {
-      const username = registerForm.username.value.trim();
-      const email    = registerForm.email.value.trim();
-      const password = registerForm.password.value;
+      const username    = registerForm.username.value.trim();
+      const email       = registerForm.email.value.trim();
+      const password    = registerForm.password.value;
+      const invite_code = registerForm.invite_code.value.trim();
 
-      await window.api.register({ username, email, password });
+      await window.api.register({ username, email, password, invite_code });
 
       setUsernameParam(username);
       showOverlay('verify'); // open inline verify modal

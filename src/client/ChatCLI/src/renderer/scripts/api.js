@@ -76,7 +76,7 @@ async function request(path, options = {}) {
 /* Convenience wrappers */
 const verifyConnection = (body)              => request('/verify-connection', { body: JSON.stringify(body) });
 const login            = ({ username, password })   => request('/user/login',    { body: JSON.stringify({ username, password }) });
-const register         = ({ username, email, password }) => request('/user/register', { body: JSON.stringify({ username, email, password }) });
+const register         = ({ username, email, password, invite_code }) => request('/user/register', { body: JSON.stringify({ username, email, password, invite_code }) });
 const verifyEmail      = ({ username, email_token }) =>
   request('/user/verify-email', { body: JSON.stringify({ username, email_token }) });
 const fetchChats       = ()          => request('/chat/fetch-chats',  {});

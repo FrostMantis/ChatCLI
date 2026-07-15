@@ -9,7 +9,7 @@ from flask import current_app
 import os
 
 from app.errors import BadRequest, Unauthorized, Forbidden, NotFound, Conflict, APIError
-from app.database.db_helper import fetch_records, insert_record, update_records
+from app.database.db_helper import fetch_records, insert_record, update_records, get_db
 from app.services.base_services import authenticate_token
 from app.services.mail_services import (
     send_verification_email,
@@ -19,6 +19,30 @@ from app.services.mail_services import (
 
 # Character set for tokens
 alphabet = string.ascii_letters + string.digits
+
+
+def _consume_invite_code(code: str) -> bool:
+    """
+    Atomically consume one use of an invite code.
+    Returns True only if a valid, non-revoked, non-expired, non-exhausted code was consumed.
+    The single guarded UPDATE prevents two registrations from burning the last use at once.
+    """
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        UPDATE invite_codes
+           SET uses = uses + 1
+         WHERE code = %s
+           AND revoked = FALSE
+           AND uses < max_uses
+           AND (expires_at IS NULL OR expires_at > %s)
+        """,
+        (code, datetime.now(timezone.utc)),
+    )
+    if conn.autocommit:
+        conn.commit()
+    return cur.rowcount == 1
 
 
 def register(data: dict) -> dict:
@@ -50,52 +74,36 @@ def register(data: dict) -> dict:
             "Password must be ≥8 chars, include upper, lower, digit & special."
         )
 
+    invite_code = (data.get("invite_code") or "").strip()
+    if not invite_code:
+        raise BadRequest("An invite code is required to register.")
+
     try:
         # hash password (store as utf-8 string for DB portability)
         hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
-        # check existing user
-        users = fetch_records(
+        existing = fetch_records(
             table="users",
             where_clause="LOWER(username) = LOWER(%s)",
             params=(username,),
             fetch_all=True
         )
+        if existing:
+            raise Conflict(f"User '{username}' already exists.")
 
-        if users:
-            user = users[0]
-            if user["email_verified"]:
-                raise Conflict(f"User '{username}' already exists.")
-            userID = user["userID"]
-            # update unverified user
-            update_records(
-                table="users",
-                data={
-                    "password": hashed,
-                    "email": email,
-                    "created_at": datetime.now(timezone.utc)
-                },
-                where_clause="userID = %s",
-                where_params=(userID,)
-            )
-            # revoke any recent tokens
-            update_records(
-                table="email_tokens",
-                data={"revoked": True},
-                where_clause="userID = %s AND expires_at > %s",
-                where_params=(userID, datetime.now(timezone.utc))
-            )
-        else:
-            # insert new user
-            userID = insert_record(
-                "users",
-                {
-                    "username": username,
-                    "password": hashed,
-                    "email": email,
-                    "email_verified": False
-                }
-            )
+        if not _consume_invite_code(invite_code):
+            raise BadRequest("Invalid or exhausted invite code.")
+
+        userID = insert_record(
+            "users",
+            {
+                "username": username,
+                "password": hashed,
+                "email": email,
+                "email_verified": False,
+                "invite_code": invite_code
+            }
+        )
 
         # create verification token
         email_token = f"{random.randint(100000, 999999):06d}"
@@ -109,7 +117,7 @@ def register(data: dict) -> dict:
                 "revoked":     False
             }
         )
-    except Conflict:
+    except APIError:
         raise
     except Exception as e:
         current_app.logger.error("Error during user registration", exc_info=e)

@@ -135,7 +135,7 @@ async def post_msg(ws: WebSocket, chatID: int, text, messageID = 0) -> dict | No
     user_id = users[0]["userID"]
 
     if messageID != 0:
-        existing = await fetch_records("messages", "messageID = %s", (messageID,), True)
+        existing = await fetch_records("messages", "messageID = %s AND chatID = %s", (messageID, chatID), True)
         if not existing:
             return {"type": "error", "message": "Message not found."}
         if existing[0]["userID"] != user_id:

@@ -31,11 +31,31 @@ def generate_lk_token(username: str, chat_id: str):
 
 # --- Call Logic Functions ---
 
+async def _is_chat_participant(username: str, chatID: int) -> bool:
+    """True if `username` is a participant of `chatID`. Mirrors the check in services.join_chat."""
+    rows = await db.fetch_records(
+        table="participants",
+        where_clause="chatID = %s AND userID = (SELECT userID FROM users WHERE username = %s)",
+        params=(chatID, username),
+        fetch_all=True,
+    )
+    return bool(rows)
+
+
 async def call_invite(ws: WebSocket, chatID: int):
     """Starts a call and generates a LiveKit token for the initiator."""
     caller = getattr(ws.state, "username", None)
-    if not caller: 
+    if not caller:
         return
+
+    # Only chat participants may start a call in this chat
+    if not await _is_chat_participant(caller, chatID):
+        return {
+            "type": "call_error",
+            "chatID": chatID,
+            "code": "ACCESS_DENIED",
+            "message": "You are not a participant of this chat.",
+        }
 
     # Generate unique call ID
     call_id = str(uuid.uuid4())
@@ -69,8 +89,17 @@ async def call_invite(ws: WebSocket, chatID: int):
 async def call_accept(ws: WebSocket, chatID: int, call_id: str = None):
     """Generates a token for the user joining the call."""
     username = getattr(ws.state, "username", None)
-    if not username: 
+    if not username:
         return
+
+    # Only chat participants may join a call in this chat
+    if not await _is_chat_participant(username, chatID):
+        return {
+            "type": "call_error",
+            "chatID": chatID,
+            "code": "ACCESS_DENIED",
+            "message": "You are not a participant of this chat.",
+        }
 
     # Get the call info from pending calls if not provided
     if not call_id:

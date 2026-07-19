@@ -45,7 +45,7 @@ EMAIL_PASSWORD=xx
 FLASK_SECRET_KEY={flask_key}
 
 #Public URL of the server
-PUB_URL=127.0.01
+PUB_URL=127.0.0.1
 
 #LiveKIT
 LIVEKIT_KEY = "devkey"

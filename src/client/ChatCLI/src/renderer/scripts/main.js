@@ -203,6 +203,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     muteBtn.style.display = shouldShow ? 'inline-flex' : 'none';
   }
 
+  // Voice calls are not yet functional; surface the control as a disabled
+  // "coming soon" affordance rather than exposing the non-working flow.
+  const CALLS_ENABLED = false;
+
   function updateCallButton() {
     const btn = store.refs.btnCallPrimary;
     if (!btn) return;
@@ -210,7 +214,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     btn.dataset.state = store.callState;
 
     const isPrivate = store.currentChat?.type === 'private' || store.currentChatIsPrivate === true;
-    setCallButtonVisible(!!store.currentChatID && isPrivate); 
+    setCallButtonVisible(!!store.currentChatID && isPrivate);
+
+    if (!CALLS_ENABLED) {
+      iconUse.setAttribute('href', '#icon-phone');
+      btn.classList.add('coming-soon');
+      btn.setAttribute('aria-disabled', 'true');
+      btn.setAttribute('aria-label', 'Voice calls coming soon');
+      btn.title = 'Voice calls coming soon';
+      return;
+    }
 
     if (store.callState === 'idle') {
       iconUse.setAttribute('href', '#icon-phone');
@@ -245,6 +258,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // Call primary button click
   store.refs.btnCallPrimary?.addEventListener('click', async () => {
+    if (!CALLS_ENABLED) {
+      showToast('Voice calls are coming soon', 'info');
+      return;
+    }
     try {
       if (!store.currentChatID) {
         showToast('Select a chat first', 'error');

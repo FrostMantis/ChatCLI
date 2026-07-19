@@ -370,6 +370,15 @@ body {
   cursor: not-allowed;
 }
 
+/* Disabled placeholder while voice calls are not yet available */
+.header-button.call-primary.coming-soon {
+  color: var(--text-secondary, #9ca3af);
+  border-color: rgba(255,255,255,0.1);
+  box-shadow: none;
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 /* Pulse halo */
 @keyframes callPulse {
   0%   { box-shadow: 0 0 0 0 rgba(16,185,129,0.6); }

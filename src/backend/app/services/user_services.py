@@ -297,7 +297,7 @@ def login(data: dict) -> dict:
         # generate refresh token
         refresh_plain  = secrets.token_urlsafe(64)
         refresh_hash   = hashlib.sha256(refresh_plain.encode()).hexdigest()
-        refresh_expiry = now + timedelta(days=os.getenv("REFRESH_TOKEN_DAYS", 60))
+        refresh_expiry = now + timedelta(days=int(os.getenv("REFRESH_TOKEN_DAYS", 60)))
         insert_record(
             "refresh_tokens",
             {
@@ -381,7 +381,7 @@ def refresh_token(data: dict) -> dict:
             {
                 "userID":    userID,
                 "token":      new_refresh_hash,
-                "expires_at": now + timedelta(days=os.getenv("REFRESH_TOKEN_DAYS", 60)),
+                "expires_at": now + timedelta(days=int(os.getenv("REFRESH_TOKEN_DAYS", 60))),
                 "revoked":    False
             }
         )

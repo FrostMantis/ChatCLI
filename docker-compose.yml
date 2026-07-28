@@ -1,0 +1,8 @@
+services:
+  backend:
+    build: ./src/backend
+    restart: unless-stopped
+    ports:
+      - "5123:5123"
+      - "8765:8765"
+    env_file: ./src/backend/.env

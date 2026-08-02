@@ -71,7 +71,11 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: false,
       // Temporarily set to false if the bypass switch above is ignored by specific OS policies
-      webSecurity: true, 
+      webSecurity: true,
+      // A call arriving is not a user gesture, so the default policy would mute
+      // the ringtone on a window that has been sitting untouched — exactly the
+      // case where the ring matters most.
+      autoplayPolicy: 'no-user-gesture-required',
     },
   })
 
@@ -88,36 +92,11 @@ function createWindow() {
     }
   });
 
-  // Preload LiveKit globally when DOM is ready
-  win.webContents.once('dom-ready', () => {
-    win.webContents.executeJavaScript(`
-      (function() {
-        if (window.LiveKit) {
-          console.log('[PRELOAD] LiveKit already available');
-          return;
-        }
-        
-        console.log('[PRELOAD] Injecting LiveKit script globally');
-        const script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/npm/livekit-client@2.17.2/dist/livekit-client.umd.js';
-        script.async = true;
-        script.onload = () => {
-          console.log('[PRELOAD] LiveKit script injected successfully');
-        };
-        script.onerror = (err) => {
-          console.error('[PRELOAD] Failed to inject LiveKit:', err);
-        };
-        
-        if (document.head) {
-          document.head.appendChild(script);
-        } else {
-          document.addEventListener('DOMContentLoaded', () => {
-            document.head.appendChild(script);
-          });
-        }
-      })();
-    `);
-  });
+  /*
+   * LiveKit used to be injected here from a CDN at dom-ready. The renderer now
+   * loads a vendored copy from its own origin (see pages/index.html), so the
+   * app runs offline and executes no code fetched at runtime.
+   */
 
   // win.removeMenu()
   win.loadFile(path.join(__dirname, '../renderer/pages', 'index.html'))

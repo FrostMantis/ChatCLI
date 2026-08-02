@@ -40,3 +40,5 @@ npm-debug.log*
 settings.json
 package-lock.json
 ignore.md
+# Regenerated from the pinned dependency by scripts/vendor-livekit.mjs (postinstall)
+src/client/ChatCLI/src/renderer/vendor/

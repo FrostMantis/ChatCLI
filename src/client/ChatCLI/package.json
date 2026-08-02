@@ -7,7 +7,8 @@
   "main": "./src/main/main.js",
   "scripts": {
     "start": "electron .",
-    "postinstall": "electron-builder install-app-deps",
+    "vendor:livekit": "node scripts/vendor-livekit.mjs",
+    "postinstall": "electron-builder install-app-deps && node scripts/vendor-livekit.mjs",
     "build:win": "electron-builder --win --x64",
     "build:linux": "electron-builder --linux --x64",
     "dist": "npm run build:win"

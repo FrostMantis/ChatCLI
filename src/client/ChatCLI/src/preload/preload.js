@@ -13,8 +13,6 @@ contextBridge.exposeInMainWorld('api', {
   fetchChats:       api.fetchChats,
   fetchMessages:    api.fetchMessages,
   createChat:       api.createChat,
-  refreshToken:     api.refreshToken,
-  initializeTokens:   api.initializeTokens,
   WS_URL,
   BASE_URL,
   CALL_URL,

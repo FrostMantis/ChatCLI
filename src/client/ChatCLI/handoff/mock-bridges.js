@@ -109,10 +109,19 @@ const ONLINE = new Set(['bob', 'carol', 'grace']); // online at start (besides y
 let nextMessageID = 1000;
 const messagesByChat = {}; // chatID -> Message[]
 const liveSockets = new Set(); // all open MockChatSocket instances
+const ARCHIVED = new Set(); // chatIDs the mock currently considers archived
 
 function nowISO(minsAgo = 0) {
-  // The backend sends ISO timestamps with no timezone suffix; drop the trailing Z to match.
-  return new Date(Date.now() - minsAgo * 60_000).toISOString().replace('Z', '');
+  // The backend stamps rows with `datetime.now()` — the server's *local* clock,
+  // serialised without a timezone suffix. Formatting UTC and stripping the "Z"
+  // would produce the right shape but the wrong instant, so build the string
+  // from local components and let the client read it as its own clock.
+  const d = new Date(Date.now() - minsAgo * 60_000);
+  const pad = (n, width = 2) => String(n).padStart(width, '0');
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+    `T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}`
+  );
 }
 
 function userId(username) {
@@ -135,6 +144,7 @@ function makeMessage({ chatID, username, message, messageID, edited_at = null, d
 
 function seed() {
   nextMessageID = 1000;
+  ARCHIVED.clear();
   for (const c of CHATS) messagesByChat[c.chatID] = [];
   for (const [chatID, msgs] of Object.entries(SEED_MESSAGES)) {
     for (const m of msgs) {
@@ -325,11 +335,9 @@ function buildApi() {
     login: ({ username }) => ok({ message: 'Login successful', access_token: 'mock-access', refresh_token: 'mock-refresh', username }),
     register: () => ok({ message: 'Account created. Check your email for a code.' }),
     verifyEmail: () => ok({ message: 'Email verified.' }),
-    fetchChats: () => ok(CHATS.slice()),
+    fetchChats: () => ok(CHATS.filter((c) => !ARCHIVED.has(c.chatID))),
     fetchMessages: (chatID, limit = 100) => ok({ messages: (messagesByChat[chatID] || []).slice(-limit) }),
     createChat: (receiver) => ok({ chatID: nextChatId(receiver) }),
-    refreshToken: () => ok({ access_token: 'mock-access-2', refresh_token: 'mock-refresh-2' }),
-    initializeTokens: () => ok(true),
   };
   return api;
 }
@@ -340,21 +348,26 @@ function routeRest(path, body, ok, fail) {
     case '/user/login': return ok({ message: 'Login successful', access_token: 'mock-access', refresh_token: 'mock-refresh' });
     case '/user/register': return ok({ message: 'Account created.' });
     case '/user/verify-email': return ok({ message: 'Email verified.' });
+    case '/user/resend-verification': return ok({ message: 'Verification code sent.' });
+    case '/user/reset-password-request': return ok({ message: 'If that email exists, a reset link is on its way.' });
+    case '/user/refresh-token': return ok({ access_token: 'mock-access-2', refresh_token: 'mock-refresh-2' });
     case '/user/profile': return ok({ username: SELF, email: `${SELF}@example.com` });
     case '/user/submit-profile': return ok({ message: 'Saved.' });
     case '/user/change-password': return ok({ message: 'Password updated.' });
     case '/user/logout':
     case '/user/logout-all': return ok({ message: 'Logged out.' });
-    case '/chat/fetch-chats': return ok(CHATS.slice());
-    case '/chat/fetch-archived': return ok([]);
+    // The real endpoints partition the same set, so archiving has to move a chat
+    // between the two lists rather than leave both unchanged.
+    case '/chat/fetch-chats': return ok(CHATS.filter((c) => !ARCHIVED.has(c.chatID)));
+    case '/chat/fetch-archived': return ok(CHATS.filter((c) => ARCHIVED.has(c.chatID)));
     case '/chat/messages': return ok({ messages: (messagesByChat[body.chatID] || []).slice(-(body.limit || 50)) });
     case '/chat/create-chat': return ok({ chatID: nextChatId(body.receiver) });
     case '/chat/create-group': return ok({ chatID: nextChatId(body.name) });
     case '/chat/get-members': return ok({ members: MEMBERS[body.chatID] || [] });
     case '/chat/add-members':
-    case '/chat/remove-members': return ok({ message: 'Members updated.' });
-    case '/chat/archive-chat':
-    case '/chat/unarchive-chat': return ok({ message: 'Done.' });
+    case '/chat/remove-members': return ok({ chatID: body.chatID });
+    case '/chat/archive-chat': ARCHIVED.add(Number(body.chatID)); return ok({ message: 'Done.' });
+    case '/chat/unarchive-chat': ARCHIVED.delete(Number(body.chatID)); return ok({ message: 'Done.' });
     default: return fail(`Mock has no route for ${path}`);
   }
 }
@@ -383,7 +396,9 @@ function buildSecureStore() {
 function buildAuth() {
   return {
     storeRefresh: () => Promise.resolve(true),
-    refresh: () => Promise.resolve({ ok: true, access_token: 'mock-access-2', refresh_token: 'mock-refresh-2' }),
+    // The real handler rotates the refresh token into the keychain itself and
+    // hands back only the access token; failures come back as { ok: false, reason }.
+    refresh: () => Promise.resolve({ ok: true, access_token: 'mock-access-2' }),
     clear: () => Promise.resolve(true),
   };
 }

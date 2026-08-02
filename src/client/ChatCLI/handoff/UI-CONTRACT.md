@@ -32,6 +32,15 @@ The app is an Electron app with three layers:
 **You own:** everything under `src/renderer/` — all HTML, CSS, and the UI JavaScript.
 Build it however you like, in any framework.
 
+> **One exception: `src/renderer/scripts/api.js`.** Despite its location it is *not* UI
+> code — `src/preload/preload.js` does `require('../renderer/scripts/api.js')` and
+> re-exports it as `window.api`. Deleting it while clearing out `src/renderer/` makes the
+> preload throw at startup, so no bridge is ever exposed and the window comes up blank
+> with nothing obvious to blame. You may edit its internals, but every function it
+> exports must keep its name and call signature, because the preload and the UI both
+> depend on those. Simplest safe option: leave it alone. Nothing in a new UI needs to
+> import it — REST goes through `window.api`.
+
 **The hard contract — never changes:**
 - `src/backend/**` — the servers. Your UI reaches them over the REST + WebSocket wire
   protocol in §4–§7. This is the real contract: any UI, on any stack, must speak it. The
@@ -108,7 +117,9 @@ Two token types come from the backend on login:
   `window.secureStore.set('session_token', <access>)` and the username with
   `window.secureStore.set('username', <name>)`.
 - **Refreshing:** when a request fails auth, call `window.auth.refresh(username)` (§8).
-  It returns `{ ok, access_token, refresh_token }`. Save the new access token and retry.
+  It returns `{ ok: true, access_token }` on success and `{ ok: false, reason }` on
+  failure. Save the new access token and retry. The rotated refresh token is not
+  returned — the main process writes it back to the keychain itself.
 
 Login, verify, register, and refresh endpoints require no token.
 
@@ -181,8 +192,8 @@ re-login: after a success, clear stored tokens and route to the login screen.
 | `/chat/create-group` | `{session_token, name, members:[username,…]}` | `{ chatID }` |
 | `/chat/messages` | `{session_token, chatID, limit?}` | `{ messages: [ Message, … ] }` (oldest→newest; `limit` 1–200, default 50) |
 | `/chat/get-members` | `{session_token, chatID}` | `{ members: [username, …] }` |
-| `/chat/add-members` | `{session_token, chatID, members:[…]}` | `{ message }` |
-| `/chat/remove-members` | `{session_token, chatID, members:[…]}` | `{ message }` |
+| `/chat/add-members` | `{session_token, chatID, members:[…]}` | `{ chatID }` |
+| `/chat/remove-members` | `{session_token, chatID, members:[…]}` | `{ chatID }` |
 | `/chat/archive-chat` | `{session_token, chatID}` | `{ message }` |
 | `/chat/unarchive-chat` | `{session_token, chatID}` | `{ message }` |
 | `/chat/fetch-archived` | `{session_token}` | `[ { chatID, name, type }, … ]` |
@@ -334,11 +345,18 @@ await window.secureStore.delete('refresh_token');
 
 // Refresh-token helper (keychain-backed), keyed by account/username
 await window.auth.storeRefresh(username, refreshToken);
-await window.auth.refresh(username);   // → { ok, access_token, refresh_token }
+await window.auth.refresh(username);   // → { ok: true, access_token } | { ok: false, reason }
 await window.auth.clear(username);     // logout: wipe stored refresh token
 ```
 
 Keys in use: `username`, `email`, `session_token`, `refresh_token`.
+
+> **Refreshing is `window.auth.refresh()` and nothing else.** `window.api` used to also
+> expose `initializeTokens()` and `refreshToken()`; both were broken from the day they were
+> written and never called by anything, so they have been removed along with the dead
+> token state inside `api.js`. `window.api.request()` is now a plain POST-JSON helper: it
+> attaches no `Authorization` header, injects no `session_token`, and does not retry. The
+> renderer owns the access token and puts it in each body itself (§4).
 
 Outside the Electron shell, provide an equivalent secure, persistent store for these
 values on each target platform.

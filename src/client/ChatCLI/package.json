@@ -22,7 +22,7 @@
   "devDependencies": {
     "@electron-forge/maker-deb": "^7.10.2",
     "@electron/rebuild": "^4.0.2",
-    "electron": "^39.2.7",
+    "electron": "^44.5.1",
     "electron-builder": "^26.4.0"
   },
   "build": {
